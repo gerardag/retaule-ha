@@ -57,6 +57,10 @@ Sense tocar res, al cap d'un minut torna a la pantalla principal. El tema clar o
 
 El token és visible a `config.js` per a qualsevol que pugui obrir la pàgina, i un usuari sense administrador encara pot encendre i apagar coses. No exposis el port 8080 a internet: deixa'l només a la xarxa de casa (o VPN).
 
+## Contribuir
+
+Les millores són benvingudes per pull request. Vegeu [CONTRIBUTING.md](CONTRIBUTING.md).
+
 ## Llicència
 
 MIT. Vegeu [LICENSE](LICENSE).
