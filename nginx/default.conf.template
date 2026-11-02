@@ -1,0 +1,35 @@
+# Serveix la pàgina i fa de pont cap a Home Assistant a la xarxa local, perquè
+# el navegador no hagi de sortir a internet i funcioni un usuari "només xarxa local".
+server {
+    listen 8080;
+    root /usr/share/nginx/html;
+
+    location = / {
+        add_header Cache-Control "no-cache";
+        try_files /index.html =404;
+    }
+
+    location = /index.html {
+        add_header Cache-Control "no-cache";
+    }
+
+    # Token i configuració de la casa, fora de la carpeta web.
+    location = /config.js {
+        root /etc/pantalla;
+        add_header Cache-Control "no-store";
+    }
+
+    # Sense X-Forwarded-For: HA veu l'adreça del servidor, que és a la xarxa local.
+    location = /api/websocket {
+        proxy_pass http://${HA_HOST};
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_read_timeout 1h;
+    }
+
+    # Caràtules dels reproductors.
+    location /api/media_player_proxy/ {
+        proxy_pass http://${HA_HOST};
+    }
+}

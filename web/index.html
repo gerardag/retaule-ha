@@ -1,0 +1,969 @@
+<!doctype html>
+<html lang="ca">
+<head>
+<meta charset="utf-8">
+<title>Retaule</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Retaule">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600&display=swap">
+<style>
+:root{--bg:#DDE7F3;--ink:#0B1B3A;--muted:#44557A;--line:rgba(11,27,58,0.16);--card:#EAF0F8;--chart:#A9BBD6;--accent:#1D4ED8;--warn:#A93A0A;--cal2:#0F766E;--red:#DC2626;--z0:#B45309;--z1:#7C3AED;--z2:#BE185D;--z3:#1D4ED8;--z4:#15803D;--z5:#0E7490;--zi0:#FBBF24;--zi1:#C4B5FD;--zi2:#F9A8D4;--zi3:#93C5FD;--zi4:#86EFAC;--zi5:#67E8F9}
+:root.fosc{--bg:#0C1730;--ink:#E6EDF7;--muted:#A3B3CE;--line:rgba(230,237,247,0.14);--card:#15254A;--chart:#3A5486;--accent:#7FA7FF;--warn:#FFA45C;--cal2:#5EEAD4;--red:#F87171;--z0:#FBBF24;--z1:#C4B5FD;--z2:#F9A8D4;--z3:#93C5FD;--z4:#86EFAC;--z5:#67E8F9;--zi0:#B45309;--zi1:#7C3AED;--zi2:#BE185D;--zi3:#1D4ED8;--zi4:#15803D;--zi5:#0E7490}
+html,body{margin:0;height:100%;overflow:hidden;background:var(--bg);color:var(--ink)}
+body{font-family:'Inter Tight',system-ui,-apple-system,sans-serif;-webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent;-webkit-text-size-adjust:100%}
+button{font:inherit;color:inherit;background:none;border:0;padding:0;margin:0;cursor:pointer;text-align:left;touch-action:manipulation}
+button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.num{font-variant-numeric:tabular-nums}
+#stage{position:absolute;left:0;top:0;width:1133px;height:744px;transform-origin:0 0;overflow:hidden;background:var(--bg)}
+.kicker{display:flex;align-items:center;gap:10px;font-size:14px;font-weight:600;letter-spacing:.12em;text-transform:uppercase}
+.kicker i{width:10px;height:10px;border-radius:50%;background:currentColor}
+.lbl{font-size:13px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+.row{display:flex;align-items:center;gap:16px;padding:14px 0;border-top:1px solid var(--line);width:100%}
+.row>div{display:flex;flex-direction:column;gap:2px}
+.big{font-size:30px;font-weight:500}
+.big small{font-size:17px;font-weight:400;color:var(--muted)}
+.solid{background:var(--ink);color:var(--bg)}
+.outline{border:1.5px solid var(--ink)}
+.pillbtn{height:60px;padding:0 28px;border-radius:30px;font-size:18px;font-weight:500}
+.done{height:52px;padding:0 28px;border-radius:26px;font-size:18px;font-weight:600}
+.panel{height:744px;box-sizing:border-box;padding:44px 56px;display:flex;flex-direction:column;gap:28px}
+.panel h2{margin:0;font-size:44px;font-weight:500;letter-spacing:-.02em}
+.phead{display:flex;align-items:center;justify-content:space-between}
+.tile{height:132px;padding:16px 18px;border-radius:18px;display:flex;flex-direction:column;align-items:flex-start;gap:2px;background:var(--card);color:var(--ink);box-sizing:border-box}
+.tile.on{background:var(--ink);color:var(--bg)}
+.tile.na{opacity:.45}
+.cv{display:flex;flex-direction:column;gap:16px;padding:24px;border-radius:20px;background:var(--card)}
+.seg{flex:1 1 0;height:52px;border-radius:26px;font-size:17px;font-weight:500;text-align:center;box-shadow:inset 0 0 0 1.5px var(--line)}
+.seg.sel{background:var(--ink);color:var(--bg);box-shadow:none}
+#net{position:absolute;top:28px;right:68px;display:none;align-items:center;gap:8px;font-size:13px;font-weight:600;color:var(--muted);pointer-events:none}
+#net i{width:8px;height:8px;border-radius:50%;background:var(--warn)}
+#toast{position:absolute;left:50%;bottom:28px;transform:translateX(-50%);padding:14px 22px;border-radius:24px;font-size:16px;font-weight:500;background:var(--ink);color:var(--bg);opacity:0;transition:opacity .2s;pointer-events:none;white-space:nowrap}
+#toast.show{opacity:1}
+</style>
+</head>
+<body>
+<div id="stage"><div id="view"></div><div id="net"><i></i><span></span></div><div id="toast"></div></div>
+<script src="config.js"></script>
+<script src="demo.js"></script>
+<script>
+'use strict';
+
+// ---------- Configuració ----------
+// Tot el que és propi de cada casa ve de config.js (vegeu config.example.js).
+// Si falta una entitat, la pantalla amaga la dada o la història que en depèn.
+const params = new URLSearchParams(location.search);
+const CFG = (params.has('demo') ? window.PANTALLA_DEMO_CONFIG : window.PANTALLA_CONFIG) || {};
+const ENT = { sun: 'sun.sun', ...CFG.entities };
+const ROOM = CFG.roomName || 'Interior';
+const LIGHTS = (CFG.lights || []).map(l => [l.entity, l.zone || '', l.name || l.entity]);
+const SCENES = (CFG.scenes || []).map(x => [x.name, 'scene', 'turn_on', x.entity]);
+if (LIGHTS.length) SCENES.push(['Apagar-ho tot', 'homeassistant', 'turn_off', LIGHTS.map(l => l[0])]);
+const MEDIA = (CFG.media || []).map(m => [m.entity, m.name || m.entity]);
+const MEDIA_ACTIVE = ['playing', 'paused', 'on', 'buffering'];
+const CAL_COLORS = ['var(--accent)', 'var(--cal2)', 'var(--z0)', 'var(--z2)'];
+const CALENDARS = (CFG.calendars || []).map((c, i) => [c.entity, c.name || c.entity, CAL_COLORS[i % CAL_COLORS.length]]);
+const AGENDA_DAYS = 7;
+const COVERS = (CFG.covers || []).map(c => [c.entity, c.name || c.entity, c.zone || '']);
+// Franja de llum barata: {from: 12, to: 18, percent: 45} i, si n'hi ha, l'entitat binary_sensor que la marca.
+const DISC = CFG.discount || null;
+// Un color per al text de cada zona, el mateix als llums i a les persianes. Sobre fons fosc (llum encès) va el to invers.
+const ZONES = [...new Set([...LIGHTS.map(l => l[1]), ...COVERS.map(c => c[2])].filter(Boolean))];
+const zoneColor = (zone, inverse) => `var(--z${inverse ? 'i' : ''}${ZONES.indexOf(zone) % 6})`;
+if (CFG.name) document.title = CFG.name;
+
+const IDLE_MS = 60000;
+const MIN = 60000;
+
+// ---------- Estat ----------
+const S = {
+  ents: {}, view: params.get('vista') || 'home', connected: false, authError: false, everConnected: false,
+  pending: {},   // entity_id -> {state|pos, t}
+  bars: null, sums: null, price: null,
+  events: null,  // [{cal, summary, start, end, allDay, location}], ordenats per inici
+  finish: {},    // entity_id -> {lc, finishedAt, startedAt}
+  strikes: null, // {lc, count}
+};
+let offset = 0; // el mode demo hi posa l'hora de l'escenari
+const now = () => Date.now() + offset;
+
+// ---------- Utilitats ----------
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const ent = id => (id ? S.ents[id] : undefined);
+const st = id => ent(id)?.state;
+const isOn = id => st(id) === 'on'; // unavailable/unknown no compten mai com a encès
+const num = id => { const v = parseFloat(st(id)); return Number.isFinite(v) ? v : null; };
+const attr = (id, k) => ent(id)?.attributes?.[k];
+const fname = id => attr(id, 'friendly_name') || id;
+const dec = (v, d) => v.toLocaleString('ca-ES', { minimumFractionDigits: d, maximumFractionDigits: d });
+const pad = n => String(n).padStart(2, '0');
+const hhmm = t => { const d = new Date(t); return pad(d.getHours()) + ':' + pad(d.getMinutes()); };
+const minsAgo = t => Math.max(0, Math.round((now() - t) / MIN));
+const dur = ms => { const m = Math.max(0, Math.round(ms / MIN)); return m < 60 ? m + ' min' : Math.floor(m / 60) + ' h ' + pad(m % 60) + ' min'; };
+const watts = w => w == null ? '–' : (w >= 1000 ? dec(w / 1000, 1) + ' kW' : Math.round(w) + ' W');
+const euros = v => dec(v, 2) + ' €';
+const deg = (v, d) => v == null ? '–' : dec(v, d) + '°';
+const minuts = m => m === 1 ? '1 minut' : m + ' minuts';
+const lower1 = s => s ? s.charAt(0).toLowerCase() + s.slice(1) : s;
+
+// ---------- Connexió amb Home Assistant ----------
+let ws = null, msgId = 1, waiters = {}, subId = null, backoff = 1000, pingTimer = null, lastPong = 0;
+let demo = null;
+
+function send(msg) {
+  if (demo) return demo.handle(msg);
+  return new Promise((resolve, reject) => {
+    if (!ws || ws.readyState !== 1 || !S.connected) return reject(new Error('desconnectat'));
+    const id = msgId++;
+    waiters[id] = { resolve, reject };
+    ws.send(JSON.stringify({ ...msg, id }));
+    setTimeout(() => { if (waiters[id]) { delete waiters[id]; reject(new Error('timeout')); } }, 15000);
+  });
+}
+
+function connect() {
+  if (!CFG.token) { S.authError = true; render(); return; }
+  // Per defecte, el mateix nginx de la pantalla fa de pont cap a HA a la xarxa local.
+  const url = (CFG.haUrl || location.origin).replace(/^http/, 'ws').replace(/\/$/, '') + '/api/websocket';
+  try { ws = new WebSocket(url); } catch (e) { return retry(); }
+  ws.onmessage = e => onMessage(JSON.parse(e.data));
+  ws.onclose = () => {
+    S.connected = false; subId = null; ws = null;
+    for (const w of Object.values(waiters)) w.reject(new Error('desconnectat'));
+    waiters = {}; clearInterval(pingTimer); render(); retry();
+  };
+}
+
+// Amb un token dolent no es reintenta: HA bloqueja la IP després de massa intents fallits.
+function retry() {
+  if (S.authError) return;
+  setTimeout(connect, backoff);
+  backoff = Math.min(backoff * 2, 30000);
+}
+
+function onMessage(m) {
+  if (m.type === 'auth_required') {
+    ws.send(JSON.stringify({ type: 'auth', access_token: CFG.token }));
+  } else if (m.type === 'auth_invalid') {
+    S.authError = true; ws.close();
+  } else if (m.type === 'auth_ok') {
+    S.connected = true; S.authError = false; S.everConnected = true; backoff = 1000;
+    subId = msgId++;
+    ws.send(JSON.stringify({ id: subId, type: 'subscribe_entities' }));
+    lastPong = Date.now();
+    pingTimer = setInterval(heartbeat, 30000);
+    render();
+    refreshEnergy();
+    refreshAgenda();
+  } else if (m.type === 'event' && m.id === subId) {
+    applyEvent(m.event);
+  } else if (m.type === 'result' || m.type === 'pong') {
+    if (m.type === 'pong') lastPong = Date.now();
+    const w = waiters[m.id]; if (!w) return;
+    delete waiters[m.id];
+    if (m.type === 'pong' || m.success) w.resolve(m.result);
+    else w.reject(new Error(m.error?.message || 'error'));
+  }
+}
+
+function heartbeat() {
+  if (Date.now() - lastPong > 70000) { ws?.close(); return; }
+  send({ type: 'ping' }).catch(() => {});
+}
+
+// Format comprimit de subscribe_entities: s=state, a=attributes, lc/lu=last_changed/updated (segons)
+function applyEvent(ev) {
+  if (ev.a) for (const [id, c] of Object.entries(ev.a)) {
+    const lu = (c.lu ?? c.lc ?? 0) * 1000;
+    S.ents[id] = { state: c.s, attributes: c.a || {}, last_changed: c.lc ? c.lc * 1000 : lu, last_updated: lu };
+  }
+  if (ev.c) for (const [id, d] of Object.entries(ev.c)) {
+    const o = S.ents[id]; if (!o) continue;
+    const n = { ...o, attributes: { ...o.attributes } };
+    const p = d['+'];
+    if (p) {
+      if ('s' in p) n.state = p.s;
+      if (p.a) Object.assign(n.attributes, p.a);
+      if (p.lc) n.last_changed = n.last_updated = p.lc * 1000;
+      else if (p.lu) n.last_updated = p.lu * 1000;
+    }
+    if (d['-']?.a) for (const k of d['-'].a) delete n.attributes[k];
+    S.ents[id] = n;
+  }
+  if (ev.r) for (const id of ev.r) delete S.ents[id];
+  settlePending();
+  schedule();
+}
+
+function callService(domain, service, entityId, data, failMsg) {
+  return send({ type: 'call_service', domain, service, service_data: data || {}, target: { entity_id: entityId } })
+    .catch(() => { toast(failMsg || 'No s\'ha pogut fer'); throw new Error('fail'); });
+}
+
+// ---------- Canvis optimistes ----------
+const PENDING_MS = 10000;
+function pendingFor(id) {
+  const p = S.pending[id];
+  if (p && now() - p.t < PENDING_MS) return p;
+  if (p) delete S.pending[id];
+  return null;
+}
+function settlePending() {
+  for (const [id, p] of Object.entries(S.pending)) {
+    if ('state' in p && st(id) === p.state) delete S.pending[id];
+    if ('pos' in p && attr(id, 'current_position') === p.pos && !['opening', 'closing'].includes(st(id))) delete S.pending[id];
+  }
+}
+const lightOn = id => { const p = pendingFor(id); return p && 'state' in p ? p.state === 'on' : isOn(id); };
+const coverPos = id => { const p = pendingFor(id); if (p && 'pos' in p) return p.pos; const v = attr(id, 'current_position'); return typeof v === 'number' ? v : null; };
+
+function toggleLight(id) {
+  if (!ent(id) || ['unavailable', 'unknown'].includes(st(id))) return toast('Aquest llum no respon');
+  S.pending[id] = { state: lightOn(id) ? 'off' : 'on', t: now() };
+  render();
+  callService('homeassistant', 'toggle', id, null, 'No s\'ha pogut canviar el llum').catch(() => { delete S.pending[id]; render(); });
+}
+function setCover(id, pos) {
+  S.pending[id] = { pos, t: now() };
+  render();
+  const call = pos === 100 ? ['open_cover'] : pos === 0 ? ['close_cover'] : ['set_cover_position', { position: pos }];
+  callService('cover', call[0], id, call[1], 'No s\'ha pogut moure la persiana').catch(() => { delete S.pending[id]; render(); });
+}
+function runScene(i) {
+  const [, domain, service, target] = SCENES[i];
+  if (!domain) return;
+  if (domain === 'homeassistant') for (const id of target) S.pending[id] = { state: 'off', t: now() };
+  render();
+  callService(domain, service, target, null, 'No s\'ha pogut activar l\'escena').catch(() => { S.pending = {}; render(); });
+}
+
+// ---------- Historial (per no confondre un reinici de HA amb un canvi real) ----------
+const histCache = {};
+async function history(id, from, to) {
+  const r = await send({
+    type: 'history/history_during_period', start_time: new Date(from).toISOString(), end_time: new Date(to).toISOString(),
+    entity_ids: [id], minimal_response: true, no_attributes: true, significant_changes_only: false,
+  });
+  return (r?.[id] || []).map(x => ({ s: x.s, t: (x.lc ?? x.lu) * 1000 }));
+}
+
+// Electrodomèstic: quan ha passat de on a off de debò (no un off restaurat després d'un reinici).
+function checkFinish(id) {
+  const e = ent(id);
+  if (!e || e.state !== 'off' || now() - e.last_changed > 60 * MIN) return;
+  const key = id + e.last_changed;
+  if (histCache[key]) return;
+  histCache[key] = 'pending';
+  history(id, e.last_changed - 12 * 60 * MIN, now()).then(h => {
+    const real = h.filter(x => x.s === 'on' || x.s === 'off');
+    let i = real.length - 1;
+    while (i > 0 && real[i - 1].s === 'off') i--;
+    if (i > 0 && real[i - 1].s === 'on') {
+      S.finish[id] = { lc: e.last_changed, finishedAt: real[i].t, startedAt: real[i - 1].t };
+    } else {
+      S.finish[id] = { lc: e.last_changed, finishedAt: null };
+    }
+    schedule();
+  }).catch(() => { delete histCache[key]; });
+}
+function finishedRecently(id) {
+  const e = ent(id), f = S.finish[id];
+  if (!e || e.state !== 'off' || !f || f.lc !== e.last_changed || !f.finishedAt) return null;
+  return now() - f.finishedAt <= 60 * MIN ? f : null;
+}
+
+// Llamps en els últims 30 minuts, comptant només pujades reals del comptador.
+function checkStrikes() {
+  const e = ent(ENT.lightningCount);
+  if (!e || now() - e.last_changed > 30 * MIN) return;
+  const key = 'strikes' + e.last_changed;
+  if (histCache[key]) return;
+  histCache[key] = 'pending';
+  history(ENT.lightningCount, now() - 30 * MIN, now()).then(h => {
+    let count = 0, prev = null, last = null;
+    for (const x of h) {
+      const v = parseFloat(x.s);
+      if (!Number.isFinite(v)) continue;
+      if (prev != null && v > prev) { count += v - prev; last = x.t; }
+      prev = v;
+    }
+    S.strikes = { lc: e.last_changed, count, last };
+    schedule();
+  }).catch(() => { delete histCache[key]; });
+}
+
+// ---------- Energia ----------
+// Preu del kWh tal com està configurat al panell d'energia de HA (xarxa elèctrica).
+const isDiscountHour = h => !!DISC && h >= DISC.from && h < DISC.to;
+const discountOn = () => !!DISC && (ENT.discount ? isOn(ENT.discount) : isDiscountHour(new Date(now()).getHours()));
+const discPct = () => DISC.percent / 100;
+async function loadPrice() {
+  try {
+    const prefs = await send({ type: 'energy/get_prefs' });
+    const grid = prefs?.energy_sources?.find(x => x.type === 'grid');
+    S.price = grid?.entity_energy_price ? () => num(grid.entity_energy_price) : () => grid?.number_energy_price ?? null;
+  } catch (e) { /* sense preu, no es mostren diners */ }
+}
+
+// kWh per hora des del dilluns o des de l'1 del mes (el que sigui abans), més l'hora en curs.
+async function refreshEnergy() {
+  const id = ENT.energy;
+  if (!id) return;
+  const t = new Date(now());
+  const day = new Date(t); day.setHours(0, 0, 0, 0);
+  const week = new Date(day); week.setDate(day.getDate() - (day.getDay() + 6) % 7);
+  const month = new Date(day); month.setDate(1);
+  const from = week < month ? week : month;
+  const hourStart = new Date(t); hourStart.setMinutes(0, 0, 0);
+  const q = (start, period) => send({ type: 'recorder/statistics_during_period', start_time: start.toISOString(), statistic_ids: [id], period, types: ['change'] });
+  try {
+    if (!S.price) await loadPrice();
+    const [hours, fives] = await Promise.all([q(from, 'hour'), q(hourStart, '5minute')]);
+    const rows = (hours?.[id] || []).map(r => ({ t: new Date(r.start), kwh: r.change || 0 }));
+    const partial = (fives?.[id] || []).reduce((a, r) => a + (r.change || 0), 0);
+    if (!rows.some(r => +r.t === +hourStart)) rows.push({ t: hourStart, kwh: partial });
+    const price = S.price?.() ?? null;
+    const sum = start => {
+      const out = { kwh: 0, eur: 0, saved: 0 };
+      for (const r of rows) if (r.t >= start) {
+        const full = r.kwh * (price ?? 0);
+        const disc = isDiscountHour(r.t.getHours()) ? discPct() : 0;
+        out.kwh += r.kwh; out.eur += full * (1 - disc); out.saved += full * disc;
+      }
+      if (price == null) out.eur = out.saved = null;
+      return out;
+    };
+    const bars = new Array(24).fill(null);
+    for (const r of rows) if (r.t >= day) bars[r.t.getHours()] = (bars[r.t.getHours()] || 0) + r.kwh;
+    S.bars = bars;
+    S.sums = { today: sum(day), week: sum(week), month: sum(month) };
+    schedule();
+  } catch (e) { /* es tornarà a provar */ }
+}
+
+// ---------- Agenda ----------
+const startOfDay = (t, add = 0) => { const d = new Date(t); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() + add); return d; };
+// Els esdeveniments de tot el dia arriben com a "2026-11-02", que és mitjanit local i no UTC.
+const calDate = s => s.length === 10 ? new Date(+s.slice(0, 4), +s.slice(5, 7) - 1, +s.slice(8, 10)) : new Date(s);
+
+async function refreshAgenda() {
+  if (!CALENDARS.length) return;
+  const from = startOfDay(now()), to = startOfDay(now(), AGENDA_DAYS);
+  try {
+    const r = await send({
+      type: 'call_service', domain: 'calendar', service: 'get_events', return_response: true,
+      target: { entity_id: CALENDARS.map(c => c[0]) },
+      service_data: { start_date_time: from.toISOString(), end_date_time: to.toISOString() },
+    });
+    const out = [];
+    for (const [i, [id]] of CALENDARS.entries()) for (const e of r?.response?.[id]?.events || []) {
+      out.push({ cal: i, summary: e.summary || '(sense títol)', start: calDate(e.start), end: calDate(e.end),
+        allDay: e.start.length === 10, location: (e.location || '').split('\n')[0] });
+    }
+    S.events = out.sort((a, b) => a.start - b.start || b.allDay - a.allDay);
+    S.agendaError = false;
+    schedule();
+  } catch (e) { S.agendaError = true; schedule(); } // es tornarà a provar; es manté l'última llista
+}
+
+// Esdeveniments que toquen un dia; els de diversos dies surten a cada dia.
+const eventsOn = day => (S.events || []).filter(e => e.start < startOfDay(day, 1) && e.end > day);
+// El proper amb hora que encara no ha acabat; si no n'hi ha, el primer de tot el dia pendent.
+function nextEvent() {
+  const left = (S.events || []).filter(e => e.end > now());
+  return left.find(e => !e.allDay) || left[0] || null;
+}
+function dayName(t) {
+  const d = startOfDay(t), today = startOfDay(now());
+  const diff = Math.round((d - today) / (24 * 60 * MIN));
+  if (diff <= 0) return 'avui';
+  if (diff === 1) return 'demà';
+  return d.toLocaleDateString('ca-ES', { weekday: 'long', day: 'numeric' });
+}
+
+// ---------- Història principal ----------
+const ALARM = {
+  disarmed: 'Desactivada', armed_home: 'Mode casa', armed_away: 'Activada', armed_night: 'Mode nit',
+  armed_vacation: 'Vacances', armed_custom_bypass: 'Personalitzada', arming: 'Activant-se', pending: 'Pendent', triggered: 'Disparada',
+};
+
+// Sensors individuals del grup, que té subgrups (portes, finestres).
+function openingSensors(id = ENT.openings) {
+  if (!id) return [];
+  const members = attr(id, 'entity_id');
+  if (Array.isArray(members)) return members.flatMap(m => openingSensors(m));
+  return ent(id) ? [id] : [];
+}
+const shortName = id => lower1(fname(id).replace(/\s*(sensor|contacte|contact|obertura)\s*/gi, ' ').trim());
+function heatingPct() { const v = num(ENT.heating); return v == null ? 0 : v; }
+function discountLeft() { const end = new Date(now()); end.setHours(DISC.to, 0, 0, 0); return end - now(); }
+function machineFact(id) { return isOn(id) ? 'En marxa' : st(id) === 'off' ? 'Aturat' : '–'; }
+
+function stories() {
+  if (!Object.keys(S.ents).length) return [{ tone: 'info', kicker: 'Casa', title: 'Connectant amb casa…', body: '', facts: [] }];
+  const out = [];
+  const heat = heatingPct();
+  const sensors = openingSensors();
+
+  // 1. Tempesta
+  const dist = num(ENT.lightningDist);
+  if (S.strikes && S.strikes.count > 0 && S.strikes.last && now() - S.strikes.last <= 30 * MIN && dist != null && dist <= 15) {
+    out.push({ tone: 'warn', kicker: 'Temps', title: `Tempesta a ${Math.round(dist)} km`,
+      body: 'Els llamps s’acosten. Si cal, desendolla els aparells més sensibles.',
+      facts: [['Llamps (30 min)', Math.round(S.strikes.count)], ['Més proper', Math.round(dist) + ' km']] });
+  }
+
+  // 2. Finestra oberta amb la calefacció en marxa
+  const open5 = sensors.filter(id => isOn(id) && now() - ent(id).last_changed >= 5 * MIN);
+  if (open5.length && heat > 0) {
+    const first = open5.sort((a, b) => ent(a).last_changed - ent(b).last_changed)[0];
+    const name = shortName(first);
+    out.push({ tone: 'warn', kicker: 'Calefacció', title: 'Finestra oberta amb la calefacció en marxa',
+      body: `La ${esc(name)} fa ${minuts(minsAgo(ent(first).last_changed))} que està oberta i ${esc(lower1(ROOM))} està escalfant. Tanca-la o apaga la calefacció.`,
+      facts: [['Oberta', open5.length > 1 ? open5.length + ' obertures' : fname(first)], ['Consigna', deg(attr(ENT.climate, 'temperature'), 1)]] });
+  }
+
+  // 3. Esdeveniment del calendari que comença d'aquí a menys de 2 hores
+  const soon = (S.events || []).find(e => !e.allDay && e.start > now() && e.start - now() <= 120 * MIN);
+  if (soon) {
+    out.push({ tone: 'good', kicker: 'Agenda', title: `${esc(soon.summary)} a les ${hhmm(soon.start)}`,
+      body: `Comença d’aquí ${dur(soon.start - now())}.${soon.location ? ' A ' + esc(soon.location) + '.' : ''}`,
+      facts: [['Calendari', CALENDARS[soon.cal][1]], ['Fins a', hhmm(soon.end)]] });
+  }
+
+  // 4. Rentaplats acabat
+  const dish = finishedRecently(ENT.dishwasher);
+  if (dish) {
+    const inDiscount = isDiscountHour(new Date(dish.finishedAt).getHours());
+    const n = num(ENT.dishCount);
+    out.push({ tone: 'good', kicker: 'Cuina', title: 'Els plats ja estan nets',
+      body: `El rentaplats ha acabat fa ${minuts(minsAgo(dish.finishedAt))}${inDiscount ? ', dins la franja amb descompte' : ''}.`,
+      facts: [['Durada', dur(dish.finishedAt - dish.startedAt)], ...(n != null ? [['Aquest any', n + ' rentats']] : [])] });
+  }
+
+  // 5. Rentadora acabada
+  const wash = finishedRecently(ENT.washer);
+  if (wash) {
+    const n = num(ENT.washCount);
+    out.push({ tone: 'good', kicker: 'Safareig', title: 'La roba està llesta',
+      body: `La rentadora ha acabat a les ${hhmm(wash.finishedAt)}. Millor estendre-la aviat perquè no es quedi arrugada.`,
+      facts: [['Durada', dur(wash.finishedAt - wash.startedAt)], ...(n != null ? [['Aquest any', n + ' rentades']] : [])] });
+  }
+
+  // 6. Pluja
+  const r1 = num(ENT.rain1h);
+  if (r1 != null && r1 > 0) {
+    const openNow = sensors.filter(isOn);
+    out.push({ tone: 'info', kicker: 'Temps', title: 'Ha començat a ploure',
+      body: openNow.length ? `Compte: ${openNow.length === 1 ? 'la ' + esc(shortName(openNow[0])) + ' està oberta' : 'hi ha ' + openNow.length + ' obertures obertes'}.`
+        : 'Portes i finestres estan tancades. Avui no caldrà regar.',
+      facts: [['Última hora', dec(r1, 1) + ' mm'], ['Últimes 24 h', num(ENT.rain24h) == null ? '–' : dec(num(ENT.rain24h), 1) + ' mm'],
+        ['Humitat', num(ENT.extHum) == null ? '–' : Math.round(num(ENT.extHum)) + '%']] });
+  }
+
+  // 7. Llum amb descompte
+  if (discountOn()) {
+    out.push({ tone: 'good', kicker: 'Energia', title: `Llum amb descompte fins a les ${pad(DISC.to)}:00`,
+      mini: `Llum a −${DISC.percent}% fins a les ${pad(DISC.to)}:00 · queden ${dur(discountLeft())}`,
+      body: `Bon moment per posar la rentadora o el rentaplats. Queden ${dur(discountLeft())} de franja barata.`,
+      facts: [...(ENT.dishwasher ? [['Rentaplats', machineFact(ENT.dishwasher)]] : []), ...(ENT.washer ? [['Rentadora', machineFact(ENT.washer)]] : [])] });
+  }
+
+  // 8. Tot en ordre
+  const al = st(ENT.alarm);
+  const anyOpen = sensors.some(isOn);
+  const coversOpen = COVERS.filter(([id]) => (coverPos(id) ?? 0) > 0).length;
+  out.push({ tone: 'info', kicker: 'Casa', title: 'Tot en ordre', fallback: true,
+    body: [al && al !== 'disarmed' && ALARM[al] ? `Alarma activada (${lower1(ALARM[al])}).` : al === 'disarmed' ? 'Alarma desactivada.' : '',
+      !ENT.openings ? '' : anyOpen ? 'Hi ha alguna porta o finestra oberta.' : 'Portes i finestres tancades.'].filter(Boolean).join(' '),
+    facts: [...(ENT.alarm ? [['Alarma', ALARM[al] || '–']] : []),
+      ...(COVERS.length ? [['Persianes', coversOpen === 0 ? 'Tancades' : coversOpen === COVERS.length ? 'Obertes' : coversOpen + ' obertes']] : []),
+      ...(ENT.servers ? [['Servidors', watts(num(ENT.servers))]] : [])] });
+
+  return out;
+}
+
+// ---------- Icones ----------
+const svg = (p, s = 30, w = 1.6) => `<svg width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="${w}" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${p}</svg>`;
+const ICON = {
+  rain: '<path d="M7 14a4.5 4.5 0 1 1 1.2-8.8A6 6 0 0 1 19.5 8 3.5 3.5 0 0 1 18 14z"/><path d="M8 17l-1 3M12 17l-1 3M16 17l-1 3"/>',
+  thermo: '<path d="M14 14.8V5a2 2 0 0 0-4 0v9.8a4 4 0 1 0 4 0z"/>',
+  home: '<path d="M3 11l9-7 9 7"/><path d="M5 10v10h14V10"/>',
+  bolt: '<path d="M13 2L4 14h7l-1 8 9-12h-7z"/>',
+  plug: '<path d="M9 2v6M15 2v6M6 8h12v4a6 6 0 0 1-12 0z"/><path d="M12 18v4"/>',
+  bulb: '<path d="M9 18h6M10 21h4"/><path d="M12 3a6 6 0 0 0-3.5 10.9c.6.5 1 1.2 1 2.1h5c0-.9.4-1.6 1-2.1A6 6 0 0 0 12 3z"/>',
+  music: '<path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/>',
+  play: '<path d="M7 4l13 8-13 8z" fill="currentColor"/>',
+  pause: '<path d="M7 4h3v16H7zM14 4h3v16h-3z" fill="currentColor"/>',
+  prev: '<path d="M19 5L9 12l10 7zM5 5v14"/>',
+  next: '<path d="M5 5l10 7-10 7zM19 5v14"/>',
+  voldown: '<path d="M4 9v6h4l5 4V5L8 9z"/><path d="M16 9.5a3.5 3.5 0 0 1 0 5"/>',
+  tv: '<rect x="3" y="5" width="18" height="12" rx="2"/><path d="M8 21h8"/>',
+  cal: '<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/>',
+  flame: '<path d="M12 22c4 0 7-2.7 7-6.6 0-3.1-2-5.6-3.6-7.2-.4 1.6-1.3 2.8-2.4 3.3.3-3.3-1.2-6.6-4-8.5.2 3-1.6 5.4-3.1 7.3C4.6 11.9 5 13.6 5 15.4 5 19.3 8 22 12 22z"/>',
+  bell: '<path d="M6 16V11a6 6 0 0 1 12 0v5l2 2H4z"/><path d="M10 21h4"/>',
+  blinds: '<path d="M4 3h16M5 3v14M19 3v14M5 7h14M5 11h14M5 15h14"/><path d="M12 17v4"/>',
+};
+
+// ---------- Avisos (coses que no funcionen) ----------
+// Cada avís té una clau estable per saber si ja s'ha vist.
+function problems() {
+  if (!Object.keys(S.ents).length) return [];
+  const out = [];
+  const na = id => ent(id) && ['unavailable', 'unknown'].includes(st(id));
+  const since = id => 'Fa ' + dur(now() - ent(id).last_changed);
+  for (const id of openingSensors().filter(na))
+    out.push({ key: id, icon: 'home', section: 'Portes i finestres', text: `El sensor de la ${shortName(id)} no respon. No el comptem com a obert; potser li cal pila.`, when: since(id) });
+  for (const [id, name] of CALENDARS)
+    if (na(id)) out.push({ key: id, icon: 'cal', section: 'Agenda', text: `El calendari ${name} no està disponible a Home Assistant.`, when: since(id) });
+  if (S.agendaError && !CALENDARS.some(([id]) => na(id)))
+    out.push({ key: 'agenda', icon: 'cal', section: 'Agenda', text: 'No s’han pogut carregar els esdeveniments.' });
+  for (const [k, section, icon, what] of [['extTemp', 'Exterior', 'thermo', 'L’estació meteorològica'], ['intTemp', ROOM, 'home', 'El sensor de temperatura'],
+    ['climate', 'Calefacció', 'home', 'El termòstat'], ['power', 'Energia', 'plug', 'El mesurador de consum']])
+    if (na(ENT[k])) out.push({ key: ENT[k], icon, section, text: `${what} no respon.`, when: since(ENT[k]) });
+  for (const [id, , name] of LIGHTS)
+    if (na(id)) out.push({ key: id, icon: 'bulb', section: 'Llums', text: `${name} no respon.`, when: since(id) });
+  for (const [id, name] of COVERS)
+    if (na(id)) out.push({ key: id, icon: 'blinds', section: 'Persianes', text: `La persiana ${lower1(name)} no respon.`, when: since(id) });
+  return out;
+}
+let seen = new Set();
+try { seen = new Set(JSON.parse(localStorage.getItem('avisos-vistos') || '[]')); } catch (e) { /* sense localStorage */ }
+function markSeen() {
+  seen = new Set(problems().map(p => p.key));
+  try { localStorage.setItem('avisos-vistos', JSON.stringify([...seen])); } catch (e) { /* sense localStorage */ }
+}
+
+function bell() {
+  const fresh = problems().some(p => !seen.has(p.key));
+  return `<button data-a="go" data-v="avisos" aria-label="Avisos" style="position:absolute;top:14px;right:14px;width:44px;height:44px;border-radius:22px;display:flex;align-items:center;justify-content:center;color:var(--muted)">
+    ${svg(ICON.bell, 24, 1.7)}${fresh ? '<span style="position:absolute;top:8px;right:9px;width:10px;height:10px;border-radius:50%;background:var(--red);box-shadow:0 0 0 2px var(--bg)"></span>' : ''}</button>`;
+}
+
+function viewAvisos() {
+  const list = problems();
+  const rows = list.map(p => `<div style="display:flex;gap:18px;align-items:center;padding:16px 0;border-top:1px solid var(--line)">
+      <span style="color:${seen.has(p.key) ? 'var(--muted)' : 'var(--red)'};flex:none">${svg(ICON[p.icon], 26)}</span>
+      <div style="display:flex;flex-direction:column;gap:4px;min-width:0;flex:1 1 auto">
+        <span class="lbl">${esc(p.section)}</span><span style="font-size:20px;font-weight:500">${esc(p.text)}</span></div>
+      ${p.when ? `<span class="num" style="flex:none;font-size:15px;color:var(--muted)">${esc(p.when)}</span>` : ''}</div>`).join('');
+  return `<div class="panel">${head('Avisos')}
+  ${list.length ? `<div style="display:flex;flex-direction:column;overflow:hidden">${rows}</div>`
+    : `<p style="margin:0;font-size:24px;color:var(--muted)">Tot funciona. Aquí sortiran els sensors o serveis que fallin.</p>`}</div>`;
+}
+
+// ---------- Vistes ----------
+// Línia de temps amb els propers esdeveniments amb hora, i els de tot el dia d'avui a la capçalera.
+function agendaStrip() {
+  if (!S.events) return '';
+  const allDay = eventsOn(startOfDay(now())).filter(e => e.allDay);
+  const timed = S.events.filter(e => !e.allDay && e.end > now()).slice(0, 4);
+  if (!allDay.length && !timed.length) return `<p style="margin:0 0 28px;font-size:18px;color:var(--muted)">Res a l’agenda els propers ${AGENDA_DAYS} dies.</p>`;
+  const when = e => {
+    const d = dayName(e.start);
+    if (d === 'avui') return hhmm(e.start);
+    const day = d === 'demà' ? 'Demà' : e.start.toLocaleDateString('ca-ES', { weekday: 'short' }).replace(/^./, c => c.toUpperCase());
+    return `<span style="font-size:16px;color:var(--muted);font-weight:400">${day}</span> ${hhmm(e.start)}`;
+  };
+  const node = (e, first) => `<div style="flex:1 1 0;min-width:0">
+      <span class="num" style="font-size:22px;font-weight:500">${when(e)}</span>
+      <div style="position:relative;height:16px;margin:8px 0">
+        <span style="position:absolute;left:0;right:0;top:7px;height:2px;background:var(--line)"></span>
+        <span style="position:absolute;left:0;top:0;width:12px;height:12px;border-radius:50%;border:2px solid ${CALENDARS[e.cal][2]};background:${first ? CALENDARS[e.cal][2] : 'var(--bg)'}"></span></div>
+      <div style="font-size:17px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding-right:12px">${esc(e.summary)}</div>
+      <div style="font-size:14px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding-right:12px">${esc(e.location || CALENDARS[e.cal][1])}</div></div>`;
+  return `<button data-a="go" data-v="agenda" style="display:block;width:100%;margin-bottom:28px">
+    <div style="display:flex;gap:10px;align-items:baseline;margin-bottom:12px;min-width:0"><span class="lbl" style="flex:none">${allDay.length ? 'Avui' : 'Agenda'}</span>
+      ${allDay.length ? `<span style="font-size:16px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Tot el dia: ${allDay.map(e => esc(e.summary)).join(' · ')}</span>` : ''}</div>
+    ${timed.length ? `<div style="display:flex">${timed.map((e, i) => node(e, i === 0)).join('')}</div>` : ''}</button>`;
+}
+
+function viewHome() {
+  const [sc, ...rest] = stories();
+  const toneColor = t => t === 'warn' ? 'var(--warn)' : t === 'good' ? 'var(--accent)' : 'var(--muted)';
+  const kc = toneColor(sc.tone);
+  // La resta d'avisos actius, en petit, perquè no quedin amagats pel principal.
+  const others = rest.filter(x => !x.fallback).slice(0, 2).map(x => `<div style="display:flex;align-items:center;gap:12px;padding:12px 0;border-top:1px solid var(--line);min-width:0">
+      <span style="width:8px;height:8px;border-radius:50%;background:${toneColor(x.tone)};flex:none"></span>
+      <span class="lbl" style="flex:none;color:${toneColor(x.tone)}">${esc(x.kicker)}</span>
+      <span style="font-size:20px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${x.mini || x.title}</span></div>`).join('');
+  const d = new Date(now());
+  const wd = d.toLocaleDateString('ca-ES', { weekday: 'long' });
+  const date = wd.charAt(0).toUpperCase() + wd.slice(1) + ', ' + d.toLocaleDateString('ca-ES', { day: 'numeric', month: 'long' });
+  const raining = num(ENT.rainRate) > 0;
+  const hum = num(ENT.extHum);
+  const heat = heatingPct();
+  const heatTxt = heat > 0 ? `${Math.round(heat)}%` : st(ENT.climate) === 'off' ? 'Calefacció apagada'
+    : attr(ENT.climate, 'temperature') != null ? 'Consigna ' + deg(attr(ENT.climate, 'temperature'), 1) : '';
+  const disc = discountOn();
+  const h = d.getHours();
+  const today = S.sums?.today;
+  const n = LIGHTS.filter(([id]) => lightOn(id)).length;
+  const lightsLabel = n === 0 ? 'Llums apagades' : n === 1 ? '1 llum encesa' : n + ' llums enceses';
+  const ev = nextEvent();
+  let agenda = '–';
+  if (ev && ev.allDay) agenda = `${esc(ev.summary)} <small>${ev.start <= now() ? 'avui' : dayName(ev.start)}</small>`;
+  else if (ev) agenda = `${hhmm(ev.start)} <small>${dayName(ev.start) === 'avui' ? '' : dayName(ev.start) + ' · '}${esc(ev.summary)}</small>`;
+  else if (S.events) agenda = `Res <small>els propers ${AGENDA_DAYS} dies</small>`;
+
+  return `<div style="height:744px;box-sizing:border-box;padding:48px 52px 44px 60px;display:flex;gap:48px">
+  <div style="flex:1 1 auto;min-width:0;display:flex;flex-direction:column">
+    <div class="kicker" style="color:${kc}"><i></i><span>${esc(sc.kicker)}</span></div>
+    <h1 style="margin:28px 0 0;font-size:70px;line-height:1.02;font-weight:500;letter-spacing:-.025em;max-width:620px">${sc.title}</h1>
+    <p style="margin:28px 0 0;font-size:24px;line-height:1.4;color:var(--muted);max-width:560px">${sc.body}</p>
+    ${others ? `<div style="margin-top:28px">${others}</div>` : ''}
+    <div style="margin-top:auto">${agendaStrip()}</div>
+    <div style="display:flex;gap:48px;padding-top:24px;border-top:1px solid var(--line)">
+      ${sc.facts.map(([k, v]) => `<div style="display:flex;flex-direction:column;gap:6px"><span class="lbl">${esc(k)}</span><span class="num" style="font-size:22px;font-weight:500">${esc(v)}</span></div>`).join('')}
+    </div>
+  </div>
+  <div style="width:1px;background:var(--line);flex:none"></div>
+  <div style="width:330px;flex:none;display:flex;flex-direction:column">
+    <div style="padding-bottom:16px">
+      <div class="num" style="font-size:72px;line-height:1;font-weight:400;letter-spacing:-.03em">${hhmm(now())}</div>
+      <div style="margin-top:8px;font-size:18px;color:var(--muted)">${esc(date)}</div>
+    </div>
+    ${!ENT.extTemp ? '' : `<button class="row" data-a="go" data-v="exterior" aria-label="Temps exterior">${svg(ICON[raining ? 'rain' : 'thermo'])}<div><span class="lbl">Exterior</span>
+      <span class="num big">${deg(num(ENT.extTemp), 0)} <small>${raining ? 'Plou' : hum == null ? '' : Math.round(hum) + '% humitat'}</small></span></div></button>`}
+    ${!ENT.intTemp ? '' : `<div class="row">${svg(ICON.home)}<div><span class="lbl">${esc(ROOM)}</span>
+      <span class="num big">${deg(num(ENT.intTemp), 1)} <small style="color:${heat > 0 ? 'var(--warn)' : 'var(--muted)'}">${heat > 0 ? `<span aria-label="Escalfant" style="display:inline-flex;align-items:center;gap:3px;vertical-align:-2px">${svg(ICON.flame, 18, 1.8)}${heatTxt}</span>` : esc(heatTxt)}</small></span></div></div>`}
+    ${!DISC ? '' : `<button class="row" data-a="go" data-v="energia">${svg(ICON.bolt)}<div><span class="lbl">Llum</span>
+      <span class="num big" style="color:${disc ? 'var(--accent)' : 'var(--ink)'}">${disc ? '−' + DISC.percent + '%' : 'Normal'} <small>${disc ? `fins a les ${pad(DISC.to)}:00` : h < DISC.from ? `descompte a les ${DISC.from} h` : `descompte demà ${DISC.from} h`}</small></span></div></button>`}
+    ${!ENT.power ? '' : `<button class="row" data-a="go" data-v="energia">${svg(ICON.plug)}<div><span class="lbl">Consum ara</span>
+      <span class="num big">${watts(num(ENT.power))} <small>${today ? dec(today.kwh, 1) + ' kWh' + (today.eur == null ? '' : ' · ' + euros(today.eur)) + ' avui' : ''}</small></span></div></button>`}
+    ${!CALENDARS.length ? '' : `<button class="row" data-a="go" data-v="agenda">${svg(ICON.cal)}<div style="min-width:0"><span class="lbl">Agenda</span>
+      <span class="num big" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${agenda}</span></div></button>`}
+    <div style="margin-top:auto;display:flex;gap:12px">
+      ${!LIGHTS.length ? '' : `<button data-a="go" data-v="llums" class="solid" style="flex:1 1 auto;min-width:0;height:60px;border-radius:30px;padding:0 16px;display:flex;align-items:center;justify-content:center;gap:8px;font-size:18px;font-weight:600;white-space:nowrap">${svg(ICON.bulb, 22, 1.8)}<span>${lightsLabel}</span></button>`}
+      ${!MEDIA.length ? '' : `<button data-a="go" data-v="media" aria-label="Música i tele" class="${mediaActive().length ? 'solid' : 'outline'}" style="width:60px;height:60px;border-radius:30px;display:flex;align-items:center;justify-content:center;flex:none">${svg(ICON.music, 24, 1.8)}</button>`}
+      ${!COVERS.length ? '' : `<button data-a="go" data-v="persianes" aria-label="Persianes" class="outline" style="width:60px;height:60px;border-radius:30px;display:flex;align-items:center;justify-content:center;flex:none">${svg(ICON.blinds, 24, 1.8)}</button>`}
+    </div>
+  </div>
+  ${bell()}
+</div>`;
+}
+
+const head = title => `<div class="phead"><h2>${title}</h2><button data-a="go" data-v="home" class="solid done">Fet</button></div>`;
+
+function viewLlums() {
+  const n = LIGHTS.filter(([id]) => lightOn(id)).length;
+  const tiles = LIGHTS.map(([id, room, name]) => {
+    const on = lightOn(id), na = !ent(id) || ['unavailable', 'unknown'].includes(st(id));
+    return `<button data-a="light" data-id="${id}" aria-pressed="${on}" class="tile${on ? ' on' : ''}${na ? ' na' : ''}">
+      <span style="font-size:12px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:${zoneColor(room, on)}">${room}</span>
+      <span style="font-size:19px;font-weight:500;margin-top:auto">${name}</span>
+      <span style="font-size:15px;opacity:.8">${na ? 'No respon' : on ? 'Encesa' : 'Apagada'}</span></button>`;
+  }).join('');
+  const scenes = SCENES.map(([name, domain], i) => domain ? `<button data-a="scene" data-i="${i}" class="outline pillbtn">${name}</button>` : '').join('');
+  return `<div class="panel">${head(`Llums <span class="num" style="color:var(--muted);font-weight:400">· ${n} enceses</span>`)}
+  <div style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px">${tiles}</div>
+  <div style="margin-top:auto;display:flex;flex-direction:column;gap:14px;padding-top:24px;border-top:1px solid var(--line)">
+    <span class="lbl">Escenes</span><div style="display:flex;gap:12px">${scenes}</div></div></div>`;
+}
+
+const mediaState = id => { const p = pendingFor(id); return p && 'state' in p ? p.state : st(id); };
+const mediaActive = () => MEDIA.filter(([id]) => MEDIA_ACTIVE.includes(mediaState(id)));
+
+function mediaCmd(id, cmd) {
+  const s = mediaState(id);
+  if (cmd === 'play_pause') {
+    S.pending[id] = { state: s === 'playing' ? 'paused' : 'playing', t: now() };
+    render();
+    return callService('media_player', 'media_play_pause', id, null, 'No s\'ha pogut fer play/pausa').catch(() => { delete S.pending[id]; render(); });
+  }
+  callService('media_player', cmd, id, null, 'No ha respost').catch(() => {});
+}
+function mediaVolume(id, pct) {
+  callService('media_player', 'volume_set', id, { volume_level: pct / 100 }, 'No s\'ha pogut canviar el volum').catch(() => {});
+}
+
+function viewMedia() {
+  const active = mediaActive();
+  const base = (CFG.haUrl || '').replace(/\/$/, '');
+  const cards = active.map(([id, name]) => {
+    const s = mediaState(id), a = ent(id).attributes;
+    const isTv = a.device_class === 'tv';
+    const stateTxt = s === 'playing' ? 'Sonant' : s === 'paused' ? 'En pausa' : s === 'buffering' ? 'Carregant…' : 'Engegada';
+    const title = a.media_title || a.source || name;
+    const sub = a.media_artist || a.media_album_name || (a.media_title && a.source ? a.source : '');
+    const pic = a.entity_picture
+      ? `<img src="${esc(base + a.entity_picture)}" alt="" style="width:112px;height:112px;border-radius:16px;object-fit:cover;flex:none">`
+      : `<div style="width:112px;height:112px;border-radius:16px;background:var(--line);display:flex;align-items:center;justify-content:center;flex:none;color:var(--muted)">${svg(isTv ? ICON.tv : ICON.music, 40, 1.4)}</div>`;
+    const vol = typeof a.volume_level === 'number' ? Math.round(a.volume_level * 100) : null;
+    const btn = (cmd, icon, label, big) => `<button data-a="media" data-id="${id}" data-c="${cmd}" aria-label="${label}" class="${big ? 'solid' : 'outline'}" style="width:${big ? 60 : 48}px;height:${big ? 60 : 48}px;border-radius:50%;display:flex;align-items:center;justify-content:center;flex:none">${svg(icon, big ? 24 : 20, 1.8)}</button>`;
+    const list = a.source_list || [];
+    const open = S.srcOpen === id;
+    const sources = open ? `<div style="display:flex;flex-wrap:wrap;gap:8px;max-height:150px;overflow-y:auto">${list.map(src =>
+      `<button data-a="source" data-id="${id}" data-s="${esc(src)}" class="seg${src === a.source ? ' sel' : ''}" style="flex:none;padding:0 16px;height:44px;font-size:15px">${esc(src)}</button>`).join('')}</div>` : '';
+    return `<div class="cv" style="gap:18px;min-width:0">
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <span class="lbl" style="display:flex;align-items:center;gap:8px">${svg(isTv ? ICON.tv : ICON.music, 16, 1.8)}${esc(name)}</span>
+        <span style="font-size:14px;color:var(--muted)">${stateTxt}</span></div>
+      <div style="display:flex;gap:18px;align-items:center;min-width:0">${pic}
+        <div style="display:flex;flex-direction:column;gap:6px;min-width:0">
+          <span style="font-size:21px;font-weight:600;line-height:1.2;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden">${esc(title)}</span>
+          <span style="font-size:16px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(sub)}</span></div></div>
+      <div style="display:flex;gap:10px;align-items:center">
+        ${btn('media_previous_track', ICON.prev, 'Anterior')}${btn('play_pause', s === 'playing' ? ICON.pause : ICON.play, s === 'playing' ? 'Pausa' : 'Play', true)}${btn('media_next_track', ICON.next, 'Següent')}
+      </div>
+      ${vol == null ? '' : `<div style="display:flex;gap:12px;align-items:center">
+        <span style="color:var(--muted);flex:none">${svg(ICON.voldown, 20, 1.8)}</span>
+        <input type="range" min="0" max="100" value="${vol}" data-vol="${id}" aria-label="Volum" style="flex:1 1 auto;min-width:0;height:28px;accent-color:var(--ink)">
+        <span class="num" style="width:34px;text-align:right;font-size:15px;color:var(--muted)">${vol}</span></div>`}
+      ${list.length ? `<button data-a="sources" data-id="${id}" style="display:flex;align-items:center;gap:10px;height:52px;padding:0 18px;border-radius:16px;border:1.5px dashed var(--line);font-size:17px;font-weight:500">
+        ${svg(ICON.play, 12)}<span style="flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(a.source || 'Triar font')}</span><span style="color:var(--muted);font-size:15px">${open ? 'Tancar' : 'Font'}</span></button>` : ''}
+      ${sources}
+    </div>`;
+  }).join('');
+  return `<div class="panel">${head('Música i tele')}
+  ${active.length ? `<div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;align-items:start">${cards}</div>`
+    : `<p style="margin:0;font-size:24px;color:var(--muted)">Ara no sona res. Aquí apareixen la tele i els altaveus quan estan engegats.</p>`}
+  </div>`;
+}
+
+function viewPersianes() {
+  const cards = COVERS.map(([id, name, zone]) => {
+    const p = coverPos(id), s = st(id);
+    const label = p == null ? 'No respon' : s === 'opening' ? 'Obrint…' : s === 'closing' ? 'Tancant…' : p === 100 ? 'Oberta' : p === 0 ? 'Tancada' : p + ' %';
+    const seg = (v, txt) => `<button data-a="cover" data-id="${id}" data-p="${v}" class="seg${p === v ? ' sel' : ''}">${txt}</button>`;
+    return `<div class="cv"><div style="display:flex;align-items:baseline;justify-content:space-between">
+      <div style="display:flex;flex-direction:column;gap:2px"><span style="font-size:12px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:${zoneColor(zone)}">${zone}</span>
+      <span style="font-size:22px;font-weight:500">${name === zone ? 'Persiana' : name}</span></div><span class="num" style="font-size:18px;color:var(--muted)">${label}</span></div>
+      <div style="height:8px;border-radius:4px;background:var(--line);overflow:hidden"><div style="height:8px;width:${p ?? 0}%;background:var(--ink);border-radius:4px;transition:width .4s"></div></div>
+      <div style="display:flex;gap:10px">${seg(100, 'Obrir')}${seg(50, 'Meitat')}${seg(0, 'Tancar')}</div></div>`;
+  }).join('');
+  return `<div class="panel">${head('Persianes')}
+  <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px">${cards}</div>
+  <div style="margin-top:auto;display:flex;gap:12px;padding-top:24px;border-top:1px solid var(--line)">
+    <button data-a="covers" data-p="100" class="outline pillbtn">Totes amunt</button>
+    <button data-a="covers" data-p="0" class="outline pillbtn">Totes avall</button></div></div>`;
+}
+
+function viewExterior() {
+  const v = (id, unit, d = 1) => num(id) == null ? '–' : dec(num(id), d) + unit;
+  const dist = num(ENT.lightningDist);
+  // [etiqueta, entitat de la qual depèn, valor]; les files sense entitat configurada no surten.
+  const rows = [
+    ['Temperatura', ENT.extTemp, deg(num(ENT.extTemp), 1)],
+    ['Humitat', ENT.extHum, v(ENT.extHum, '%', 0)],
+    ['Pluja ara', ENT.rainRate, v(ENT.rainRate, ' mm/h')],
+    ['Pluja última hora', ENT.rain1h, v(ENT.rain1h, ' mm')],
+    ['Pluja 24 h', ENT.rain24h, v(ENT.rain24h, ' mm')],
+    ['Vent', ENT.wind, v(ENT.wind, ' km/h', 0) + (num(ENT.gust) == null ? '' : ' · ratxa ' + dec(num(ENT.gust), 0))],
+    ['Índex UV', ENT.uv, v(ENT.uv, '', 0)],
+    ['Radiació solar', ENT.solar, v(ENT.solar, ' W/m²', 0)],
+    ['VPD', ENT.vpd, v(ENT.vpd, ' kPa', 2)],
+    ['Llamp més proper', ENT.lightningDist, dist == null ? 'Cap' : dec(dist, 0) + ' km'],
+    ['Llamps detectats', ENT.lightningCount, v(ENT.lightningCount, '', 0)],
+  ].filter(r => r[1]).map(([k, , val]) => [k, val]);
+  const half = Math.ceil(rows.length / 2);
+  const col = list => `<div style="flex:1 1 0;display:flex;flex-direction:column">${list.map(([k, val]) =>
+    `<div style="display:flex;justify-content:space-between;align-items:baseline;padding:16px 0;border-top:1px solid var(--line)">
+    <span style="font-size:17px;color:var(--muted)">${k}</span><span class="num" style="font-size:24px;font-weight:500">${esc(val)}</span></div>`).join('')}</div>`;
+  return `<div class="panel">${head('Exterior')}
+  <div style="display:flex;gap:48px">${col(rows.slice(0, half))}${col(rows.slice(half))}</div>
+  <span style="margin-top:auto;font-size:14px;color:var(--muted)">Dades de Home Assistant</span></div>`;
+}
+
+function viewAgenda() {
+  const dot = i => `<span style="width:10px;height:10px;border-radius:50%;background:${CALENDARS[i][2]};flex:none"></span>`;
+  const days = [];
+  for (let i = 0; i < AGENDA_DAYS; i++) {
+    const day = startOfDay(now(), i);
+    const list = eventsOn(day);
+    if (!list.length && i > 0) continue;
+    const wd = day.toLocaleDateString('ca-ES', { weekday: 'long', day: 'numeric', month: 'long' });
+    const title = i === 0 ? 'Avui · ' + wd : i === 1 ? 'Demà · ' + wd : wd;
+    const items = list.map(e => {
+      const past = !e.allDay && e.end <= now();
+      const when = e.allDay ? 'Tot el dia' : hhmm(e.start) + '–' + hhmm(e.end);
+      return `<div style="display:flex;gap:14px;align-items:baseline;padding:10px 0;border-top:1px solid var(--line);opacity:${past ? .45 : 1}">
+        <span class="num" style="width:104px;flex:none;font-size:15px;color:var(--muted)">${when}</span>
+        <div style="display:flex;flex-direction:column;gap:2px;min-width:0;flex:1 1 auto">
+          <span style="font-size:19px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(e.summary)}</span>
+          ${e.location ? `<span style="font-size:14px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(e.location)}</span>` : ''}</div>
+        ${dot(e.cal)}</div>`;
+    }).join('') || `<div style="padding:10px 0;border-top:1px solid var(--line);font-size:17px;color:var(--muted)">Res</div>`;
+    days.push(`<div style="break-inside:avoid;margin-bottom:22px"><div class="lbl" style="margin-bottom:6px">${esc(title)}</div>${items}</div>`);
+  }
+  const legend = CALENDARS.map(([, name], i) => `<span style="display:flex;align-items:center;gap:8px">${dot(i)}${esc(name)}</span>`).join('');
+  return `<div class="panel">${head('Agenda')}
+  ${S.events ? `<div style="column-count:2;column-gap:48px;flex:1 1 auto;min-height:0;overflow:hidden">${days.join('')}</div>`
+    : `<p style="margin:0;font-size:24px;color:var(--muted)">${S.agendaError ? 'Els calendaris no estan disponibles a Home Assistant.' : 'Carregant els calendaris…'}</p>`}
+  <div style="margin-top:auto;display:flex;gap:24px;font-size:14px;color:var(--muted)">${legend}</div></div>`;
+}
+
+// Escala vertical amb un pas rodó i com a molt 4 línies.
+function niceScale(max) {
+  const step = [0.05, 0.1, 0.2, 0.25, 0.5, 1, 2, 5].find(st => max / st <= 4) || 10;
+  return { step, top: Math.max(step, Math.ceil(max / step) * step) };
+}
+
+function viewEnergia() {
+  const bars = S.bars || new Array(24).fill(null);
+  const nowH = new Date(now()).getHours();
+  const { step, top } = niceScale(Math.max(...bars.map(v => v || 0)));
+  const H = 340;
+  const sel = S.barSel;
+  const cols = bars.map((v, h) => {
+    const color = isDiscountHour(h) ? 'var(--accent)' : 'var(--chart)';
+    const px = v == null ? 0 : Math.max(3, Math.round(v / top * H));
+    const dim = sel != null ? (h === sel ? 1 : .35) : (h > nowH ? .3 : 1);
+    return `<button data-a="bar" data-h="${h}" aria-label="${pad(h)} h" style="flex:1 1 0;display:flex;flex-direction:column;justify-content:flex-end;height:${H}px;position:relative;z-index:1"><span style="display:block;width:100%;height:${px}px;border-radius:4px 4px 0 0;background:${color};opacity:${dim}"></span></button>`;
+  }).join('');
+  const grid = [];
+  for (let v = step; v <= top + 1e-9; v += step) {
+    const y = Math.round(v / top * H);
+    grid.push(`<div style="position:absolute;left:0;right:0;bottom:${y}px;border-top:1px dashed var(--line)"></div>
+      <span class="num" style="position:absolute;right:-52px;bottom:${y - 8}px;width:44px;font-size:13px;color:var(--muted)">${dec(v, v < 1 ? 2 : v % 1 ? 1 : 0)}</span>`);
+  }
+  const labels = bars.map((_, h) => `<span class="num" style="flex:1 1 0;font-size:13px;text-align:center;color:var(--muted)">${h % 3 === 0 ? pad(h) : ''}</span>`).join('');
+  const caption = sel != null
+    ? `<b style="color:var(--ink);font-weight:600">${pad(sel)}–${pad((sel + 1) % 24)} h: ${bars[sel] == null ? 'sense dades' : dec(bars[sel], 2) + ' kWh'}</b>`
+    : 'kWh per hora · toca una barra per veure el valor';
+  const sums = S.sums;
+  const money = x => x ? (x.eur == null ? dec(x.kwh, 1) + ' kWh' : euros(x.eur)) : '–';
+  const sub = x => x && x.eur != null ? dec(x.kwh, 1) + ' kWh' : '';
+  const rows = [
+    ['Consum ara', watts(num(ENT.power)), ''],
+    ['Avui', money(sums?.today), sub(sums?.today)],
+    ['Aquesta setmana', money(sums?.week), sub(sums?.week)],
+    ['Aquest mes', money(sums?.month), sub(sums?.month)],
+    ...(DISC ? [['Estalvi pel descompte, mes', sums?.month?.saved == null ? '–' : euros(sums.month.saved), '']] : []),
+    ...(ENT.servers ? [['Servidors', watts(num(ENT.servers)), '']] : []),
+    ...(ENT.dishCount || ENT.washCount ? [['Rentaplats / rentadores, any', (num(ENT.dishCount) ?? '–') + ' / ' + (num(ENT.washCount) ?? '–'), '']] : []),
+  ].map(([k, v, small]) => `<div style="display:flex;justify-content:space-between;align-items:baseline;padding:13px 0;border-top:1px solid var(--line)">
+    <span style="font-size:16px;color:var(--muted)">${k}</span><span class="num" style="font-size:22px;font-weight:500;text-align:right">${esc(v)}${small ? `<small style="display:block;font-size:14px;font-weight:400;color:var(--muted)">${small}</small>` : ''}</span></div>`).join('');
+  return `<div class="panel">${head('Energia avui')}
+  <div style="display:flex;gap:48px;flex:1 1 auto;min-height:0">
+    <div style="flex:1 1 auto;display:flex;flex-direction:column;gap:14px">
+      ${!DISC ? '' : `<div style="display:flex;gap:20px;font-size:15px;color:var(--muted)">
+        <span style="display:flex;align-items:center;gap:8px"><span style="width:12px;height:12px;border-radius:3px;background:var(--accent)"></span>Franja amb descompte (${DISC.from}–${DISC.to} h)</span>
+        <span style="display:flex;align-items:center;gap:8px"><span style="width:12px;height:12px;border-radius:3px;background:var(--chart)"></span>Preu normal</span></div>`}
+      <div style="position:relative;margin-right:52px;margin-top:20px">
+        ${grid.join('')}
+        <span style="position:absolute;right:-52px;top:-26px;font-size:13px;color:var(--muted)">kWh</span>
+        <div style="display:flex;align-items:flex-end;gap:6px;height:${H}px;border-bottom:1px solid var(--line)">${cols}</div>
+      </div>
+      <div style="display:flex;gap:6px;margin-right:52px">${labels}</div>
+      <span style="font-size:15px;color:var(--muted)">${caption}</span>
+    </div>
+    <div style="width:300px;flex:none;display:flex;flex-direction:column">${rows}</div></div></div>`;
+}
+
+// ---------- Render ----------
+let rafPending = false;
+function schedule() { if (!rafPending) { rafPending = true; requestAnimationFrame(() => { rafPending = false; render(); }); } }
+
+let sliding = false;
+function render() {
+  if (sliding) return;
+  checkFinish(ENT.dishwasher);
+  checkFinish(ENT.washer);
+  checkStrikes();
+  const theme = params.get('tema') || (st(ENT.sun) === 'below_horizon' ? 'fosc' : 'clar');
+  document.documentElement.classList.toggle('fosc', theme === 'fosc');
+  const v = S.view;
+  $('view').innerHTML = v === 'llums' ? viewLlums() : v === 'persianes' ? viewPersianes() : v === 'energia' ? viewEnergia() : v === 'exterior' ? viewExterior() : v === 'media' ? viewMedia() : v === 'agenda' ? viewAgenda() : v === 'avisos' ? viewAvisos() : viewHome();
+  const net = $('net');
+  const showNet = !demo && (S.authError || (!S.connected && (S.everConnected || performance.now() > 5000)));
+  net.style.display = showNet ? 'flex' : 'none';
+  net.lastChild.textContent = S.authError ? (CFG.token ? 'Token no vàlid' : 'Falta config.js') : 'Sense connexió';
+}
+
+let toastTimer;
+function toast(msg) {
+  const t = $('toast'); t.textContent = msg; t.classList.add('show');
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove('show'), 3000);
+}
+
+// ---------- Interacció ----------
+let idleTimer;
+function touched() {
+  clearTimeout(idleTimer);
+  idleTimer = setTimeout(() => { if (S.view !== 'home') { S.view = 'home'; render(); } }, IDLE_MS);
+  requestWakeLock();
+}
+document.addEventListener('pointerdown', touched, { passive: true });
+
+$('view').addEventListener('input', e => {
+  if (!e.target.dataset.vol) return;
+  sliding = true;
+  e.target.nextElementSibling.textContent = e.target.value;
+});
+$('view').addEventListener('change', e => {
+  if (!e.target.dataset.vol) return;
+  sliding = false;
+  mediaVolume(e.target.dataset.vol, +e.target.value);
+  render();
+});
+
+$('view').addEventListener('click', e => {
+  const b = e.target.closest('button[data-a]'); if (!b) return;
+  const a = b.dataset.a;
+  if (a === 'go') { if (S.view === 'avisos') markSeen(); S.view = b.dataset.v; S.barSel = null; if (S.view === 'energia') refreshEnergy(); if (S.view === 'agenda') refreshAgenda(); render(); }
+  else if (a === 'bar') { const h = +b.dataset.h; S.barSel = S.barSel === h ? null : h; render(); }
+  else if (a === 'light') toggleLight(b.dataset.id);
+  else if (a === 'scene') runScene(+b.dataset.i);
+  else if (a === 'cover') setCover(b.dataset.id, +b.dataset.p);
+  else if (a === 'media') mediaCmd(b.dataset.id, b.dataset.c);
+  else if (a === 'sources') { S.srcOpen = S.srcOpen === b.dataset.id ? null : b.dataset.id; render(); }
+  else if (a === 'source') { S.srcOpen = null; render(); callService('media_player', 'select_source', b.dataset.id, { source: b.dataset.s }, 'No s\'ha pogut canviar la font').catch(() => {}); }
+  else if (a === 'covers') COVERS.forEach(([id]) => setCover(id, +b.dataset.p));
+});
+
+// ---------- Escala, pantalla encesa i versió ----------
+function fit() {
+  const h = innerHeight - ($('demobar')?.offsetHeight || 0);
+  const s = Math.min(innerWidth / 1133, h / 744);
+  const style = $('stage').style;
+  style.transform = `scale(${s})`;
+  style.left = Math.max(0, (innerWidth - 1133 * s) / 2) + 'px';
+  style.top = Math.max(0, (h - 744 * s) / 2) + 'px';
+}
+addEventListener('resize', fit);
+
+let wakeLock = null;
+async function requestWakeLock() {
+  try { if (!wakeLock && 'wakeLock' in navigator && document.visibilityState === 'visible') {
+    wakeLock = await navigator.wakeLock.request('screen');
+    wakeLock.addEventListener('release', () => { wakeLock = null; });
+  } } catch (e) { /* sense wake lock */ }
+}
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') { requestWakeLock(); if (ws && S.connected) heartbeat(); }
+});
+
+// Si l'index.html del clúster canvia, la pantalla es recarrega sola.
+let version = null;
+async function checkVersion() {
+  try {
+    const r = await fetch(location.pathname, { cache: 'no-store' });
+    const txt = await r.text();
+    let h = 0; for (let i = 0; i < txt.length; i++) h = (h * 31 + txt.charCodeAt(i)) | 0;
+    if (version != null && h !== version) location.reload();
+    version = h;
+  } catch (e) { /* sense xarxa */ }
+}
+
+// ---------- Arrencada ----------
+fit();
+setInterval(() => { refreshEnergy(); refreshAgenda(); }, 10 * MIN);
+setInterval(schedule, 15000); // rellotge i comptes enrere
+if (params.has('demo')) {
+  demo = window.PANTALLA_DEMO(params.get('demo'), { applyEvent, setOffset: o => { offset = o; } });
+  refreshEnergy(); refreshAgenda(); fit();
+} else {
+  connect();
+  checkVersion(); setInterval(checkVersion, 30 * MIN);
+}
+render();
+requestWakeLock();
+</script>
+</body>
+</html>
