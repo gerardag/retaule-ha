@@ -134,11 +134,14 @@ window.PANTALLA_DEMO = function (name, app) {
         } });
       }
       if (msg.type === 'call_service') {
-        const ids = [].concat(msg.target.entity_id);
+        const ids = [].concat(msg.target?.entity_id);
         const c = {};
-        if (msg.domain === 'alarm_control_panel') {
+        if (msg.domain === 'alarm_control_panel' || msg.domain === 'script') {
+          if (msg.domain === 'script') ids[0] = 'alarm_control_panel.casa';
           const e = E[ids[0]];
-          if (e.a.code_format && msg.service_data.code !== '1234') return Promise.reject(new Error('codi'));
+          const ok = msg.service_data.code === '1234' || !(e.a.code_format || msg.domain === 'script');
+          if (msg.domain === 'script') { if (ok) setTimeout(() => app.applyEvent({ c: { [ids[0]]: { '+': { s: 'disarmed', lc: Date.now() / 1000 } } } }), 600); return Promise.resolve({ response: { ok } }); }
+          if (!ok) return Promise.reject(new Error('codi'));
           setTimeout(() => app.applyEvent({ c: { [ids[0]]: { '+': { s: 'disarmed', lc: Date.now() / 1000 } } } }), 600);
           return Promise.resolve({});
         }

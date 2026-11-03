@@ -599,11 +599,18 @@ function agendaStrip() {
 // ---------- Alarma ----------
 const ALARM_ARMED = ['armed_home', 'armed_away', 'armed_night', 'armed_vacation', 'armed_custom_bypass', 'arming'];
 const alarmState = () => st(ENT.alarm);
-const alarmNeedsCode = () => attr(ENT.alarm, 'code_format') != null;
+// Amb alarmScript, la pantalla sempre demana codi i el passa a aquest script de HA, que el comprova, desactiva l'alarma i torna {ok}.
+// Així el codi només és a HA i l'app de HA pot seguir sense demanar-lo.
+const ALARM_SCRIPT = CFG.alarmScript || '';
+const alarmNeedsCode = () => !!ALARM_SCRIPT || attr(ENT.alarm, 'code_format') != null;
 function disarm() {
   const data = alarmNeedsCode() ? { code: S.code } : {};
   S.code = ''; S.confirmDisarm = 0; render();
-  callService('alarm_control_panel', 'alarm_disarm', ENT.alarm, data, alarmNeedsCode() ? 'Codi incorrecte' : 'No s\'ha pogut desactivar').catch(() => {});
+  const fail = alarmNeedsCode() ? 'Codi incorrecte' : 'No s\'ha pogut desactivar';
+  // L'script torna {ok: true|false}: un codi dolent no és un error de HA, és una resposta.
+  if (ALARM_SCRIPT) send({ type: 'call_service', domain: 'script', service: ALARM_SCRIPT.replace(/^script\./, ''), service_data: data, return_response: true })
+    .then(r => { if (!r?.response?.ok) toast(fail); }, () => toast('No s\'ha pogut desactivar'));
+  else callService('alarm_control_panel', 'alarm_disarm', ENT.alarm, data, fail).catch(() => {});
 }
 function keypad() {
   const key = (label, a, extra = '') => `<button data-a="${a}" data-k="${label}" class="outline num" style="height:84px;border-radius:42px;font-size:32px;font-weight:500;display:flex;align-items:center;justify-content:center;${extra}">${label}</button>`;

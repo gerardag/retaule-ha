@@ -66,6 +66,9 @@ window.PANTALLA_CONFIG = {
   media: [
     { entity: 'media_player.televisio', name: 'Televisió' },
   ],
+  // Opcional: script de HA que rep {code}, el comprova, desactiva l'alarma i torna {ok: true|false} amb stop + response_variable.
+  // Amb això la pantalla sempre demana codi (vegeu el README).
+  // alarmScript: 'script.desactivar_alarma_pantalla',
   calendars: [
     { entity: 'calendar.personal', name: 'Personal' },
   ],

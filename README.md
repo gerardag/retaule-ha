@@ -55,6 +55,44 @@ Obre `http://<servidor>:8080`.
 
 Sense tocar res, al cap d'un minut torna a la pantalla principal. El tema clar o fosc segueix `sun.sun`; es pot forçar amb `?tema=clar` o `?tema=fosc`. Si canvies `index.html` al servidor, la tauleta es recarrega sola en menys de 30 minuts.
 
+## Alarma amb codi a la pantalla
+
+Amb l'alarma activada, la pantalla és tota per a l'alarma. Si l'entitat de HA demana codi, surt un teclat; si no, un botó que s'ha de tocar dues vegades.
+
+Si vols que la pantalla de la paret demani codi però l'app de HA no, crea aquest script a HA (canvia `'0000'` pel teu codi i l'entitat per la teva alarma) i posa'l a `config.js` com a `alarmScript: 'script.<id>'`. El codi només és a HA: la pàgina l'envia a l'script, que el comprova i torna `ok`.
+
+```yaml
+alias: Desactivar alarma des de la pantalla
+description: El crida la pantalla de la paret amb el codi del teclat. Torna ok true o false.
+mode: single
+icon: mdi:shield-key
+fields:
+  code:
+    name: Codi
+    required: true
+    selector:
+      text:
+sequence:
+  - if:
+      - condition: template
+        value_template: "{{ code | string == '0000' }}"
+    then:
+      - action: alarm_control_panel.alarm_disarm
+        target:
+          entity_id: alarm_control_panel.casa
+      - variables:
+          resultat:
+            ok: true
+      - stop: Desactivada
+        response_variable: resultat
+    else:
+      - variables:
+          resultat:
+            ok: false
+      - stop: Codi incorrecte
+        response_variable: resultat
+```
+
 ## Seguretat
 
 El token és visible a `config.js` per a qualsevol que pugui obrir la pàgina, i un usuari sense administrador encara pot encendre i apagar coses. No exposis el port 8080 a internet: deixa'l només a la xarxa de casa (o VPN).
