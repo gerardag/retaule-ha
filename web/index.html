@@ -8,12 +8,15 @@
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Retaule">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="icon" href="favicon-32.png" sizes="32x32" type="image/png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@400;500;600&display=swap">
 <style>
-:root{--bg:#DDE7F3;--ink:#0B1B3A;--muted:#44557A;--line:rgba(11,27,58,0.16);--card:#EAF0F8;--chart:#A9BBD6;--accent:#1D4ED8;--warn:#A93A0A;--cal2:#0F766E;--red:#DC2626;--z0:#B45309;--z1:#7C3AED;--z2:#BE185D;--z3:#1D4ED8;--z4:#15803D;--z5:#0E7490;--zi0:#FBBF24;--zi1:#C4B5FD;--zi2:#F9A8D4;--zi3:#93C5FD;--zi4:#86EFAC;--zi5:#67E8F9}
-:root.fosc{--bg:#0C1730;--ink:#E6EDF7;--muted:#A3B3CE;--line:rgba(230,237,247,0.14);--card:#15254A;--chart:#3A5486;--accent:#7FA7FF;--warn:#FFA45C;--cal2:#5EEAD4;--red:#F87171;--z0:#FBBF24;--z1:#C4B5FD;--z2:#F9A8D4;--z3:#93C5FD;--z4:#86EFAC;--z5:#67E8F9;--zi0:#B45309;--zi1:#7C3AED;--zi2:#BE185D;--zi3:#1D4ED8;--zi4:#15803D;--zi5:#0E7490}
+:root{--ok:#15803D;--orange:#EA580C;--bg:#DDE7F3;--ink:#0B1B3A;--muted:#44557A;--line:rgba(11,27,58,0.16);--card:#EAF0F8;--chart:#A9BBD6;--accent:#1D4ED8;--warn:#A93A0A;--cal2:#0F766E;--red:#DC2626;--z0:#B45309;--z1:#7C3AED;--z2:#BE185D;--z3:#1D4ED8;--z4:#15803D;--z5:#0E7490;--zi0:#FBBF24;--zi1:#C4B5FD;--zi2:#F9A8D4;--zi3:#93C5FD;--zi4:#86EFAC;--zi5:#67E8F9}
+:root.fosc{--ok:#4ADE80;--orange:#FB923C;--bg:#0C1730;--ink:#E6EDF7;--muted:#A3B3CE;--line:rgba(230,237,247,0.14);--card:#15254A;--chart:#3A5486;--accent:#7FA7FF;--warn:#FFA45C;--cal2:#5EEAD4;--red:#F87171;--z0:#FBBF24;--z1:#C4B5FD;--z2:#F9A8D4;--z3:#93C5FD;--z4:#86EFAC;--z5:#67E8F9;--zi0:#B45309;--zi1:#7C3AED;--zi2:#BE185D;--zi3:#1D4ED8;--zi4:#15803D;--zi5:#0E7490}
 html{--inset-top:env(safe-area-inset-top, 0px);--edge:color-mix(in srgb, var(--ink) 35%, transparent)}
 html,body{margin:0;height:100%;overflow:hidden;background:var(--bg);color:var(--ink)}
 body{font-family:'Inter Tight',system-ui,-apple-system,sans-serif;-webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent;-webkit-text-size-adjust:100%}
@@ -91,6 +94,8 @@ const S = {
   events: null,  // [{cal, summary, start, end, allDay, location}], ordenats per inici
   finish: {},    // entity_id -> {lc, finishedAt, startedAt}
   strikes: null, // {lc, count}
+  code: '',      // codi de l'alarma que s'està teclejant; no es guarda enlloc
+  confirmDisarm: 0,
 };
 let offset = 0; // el mode demo hi posa l'hora de l'escenari
 const now = () => Date.now() + offset;
@@ -513,6 +518,8 @@ const ICON = {
   flame: '<path d="M12 22c4 0 7-2.7 7-6.6 0-3.1-2-5.6-3.6-7.2-.4 1.6-1.3 2.8-2.4 3.3.3-3.3-1.2-6.6-4-8.5.2 3-1.6 5.4-3.1 7.3C4.6 11.9 5 13.6 5 15.4 5 19.3 8 22 12 22z"/>',
   bell: '<path d="M6 16V11a6 6 0 0 1 12 0v5l2 2H4z"/><path d="M10 21h4"/>',
   door: '<path d="M6 21V4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v17"/><path d="M3 21h18"/><path d="M14.5 12h.01" stroke-width="2.4"/>',
+  shield: '<path d="M12 3l8 3v6c0 4.8-3.4 8.3-8 9-4.6-.7-8-4.2-8-9V6z"/>',
+  del: '<path d="M9 5h11v14H9l-6-7z"/><path d="M12 9l5 6M17 9l-5 6"/>',
   blinds: '<path d="M4 3h16M5 3v14M19 3v14M5 7h14M5 11h14M5 15h14"/><path d="M12 17v4"/>',
 };
 
@@ -589,7 +596,60 @@ function agendaStrip() {
     ${timed.length ? `<div style="display:flex">${timed.map((e, i) => node(e, i === 0)).join('')}</div>` : ''}</button>`;
 }
 
+// ---------- Alarma ----------
+const ALARM_ARMED = ['armed_home', 'armed_away', 'armed_night', 'armed_vacation', 'armed_custom_bypass', 'arming'];
+const alarmState = () => st(ENT.alarm);
+const alarmNeedsCode = () => attr(ENT.alarm, 'code_format') != null;
+function disarm() {
+  const data = alarmNeedsCode() ? { code: S.code } : {};
+  S.code = ''; S.confirmDisarm = 0; render();
+  callService('alarm_control_panel', 'alarm_disarm', ENT.alarm, data, alarmNeedsCode() ? 'Codi incorrecte' : 'No s\'ha pogut desactivar').catch(() => {});
+}
+function keypad() {
+  const key = (label, a, extra = '') => `<button data-a="${a}" data-k="${label}" class="outline num" style="height:84px;border-radius:42px;font-size:32px;font-weight:500;display:flex;align-items:center;justify-content:center;${extra}">${label}</button>`;
+  const dots = Array.from({ length: Math.max(4, S.code.length) }, (_, i) => `<span style="width:16px;height:16px;border-radius:50%;${i < S.code.length ? 'background:var(--ink)' : 'box-shadow:inset 0 0 0 1.5px var(--edge)'}"></span>`).join('');
+  return `<div style="display:flex;flex-direction:column;gap:20px;width:360px">
+    <div style="display:flex;gap:12px;height:20px;align-items:center;justify-content:center" aria-label="${S.code.length} xifres">${dots}</div>
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px">
+      ${[1, 2, 3, 4, 5, 6, 7, 8, 9].map(n => key(n, 'key')).join('')}
+      <button data-a="keydel" aria-label="Esborrar" class="outline" style="height:84px;border-radius:42px;display:flex;align-items:center;justify-content:center">${svg(ICON.del, 28, 1.7)}</button>
+      ${key(0, 'key')}
+      <button data-a="disarm" aria-label="Desactivar" class="solid" style="height:84px;border-radius:42px;display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:600${S.code ? '' : ';opacity:.4'}"${S.code ? '' : ' disabled'}>OK</button>
+    </div></div>`;
+}
+// Amb l'alarma activada, la pantalla és tota per a l'alarma: teclat si HA demana codi; si no, un botó que s'ha de tocar dues vegades.
+function viewAlarm() {
+  const al = alarmState();
+  const e = ent(ENT.alarm);
+  const urgent = al === 'pending' || al === 'triggered';
+  const color = al === 'triggered' ? 'var(--red)' : al === 'pending' || al === 'arming' ? 'var(--orange)' : 'var(--ok)';
+  const delay = attr(ENT.alarm, 'delay');
+  const left = al === 'pending' && delay ? Math.max(0, Math.ceil(delay - (now() - e.last_changed) / 1000)) : null;
+  const title = al === 'triggered' ? 'L’alarma està sonant' : al === 'pending' ? 'Desactiva l’alarma' : al === 'arming' ? 'Activant l’alarma' : 'Alarma activada';
+  const sub = al === 'triggered' ? 'Introdueix el codi per aturar-la.' : al === 'pending' ? (left != null ? `Sonarà d’aquí ${left} s.` : 'Si no la desactives, sonarà.')
+    : `${al === 'armed_away' || al === 'arming' ? 'Des' : esc(ALARM[al] || al) + ' · des'} de les ${hhmm(e.last_changed)}`;
+  const shield = size => `<div style="width:${size}px;height:${size}px;border-radius:50%;display:flex;align-items:center;justify-content:center;color:${color};background:color-mix(in srgb, ${color} 12%, transparent);flex:none">${svg(ICON.shield, size * 0.5, 1.5)}</div>`;
+  const clock = `<div class="num" style="position:absolute;top:40px;left:60px;font-size:28px;color:var(--muted)">${hhmm(now())}</div>`;
+
+  if (alarmNeedsCode()) {
+    return `<div style="height:744px;box-sizing:border-box;padding:56px 80px;display:flex;gap:80px;align-items:center;position:relative">${clock}
+      <div style="flex:1 1 auto;min-width:0;display:flex;flex-direction:column;gap:24px">
+        ${shield(120)}
+        <h1 style="margin:0;font-size:60px;line-height:1.05;font-weight:500;letter-spacing:-.025em;color:${urgent ? color : 'var(--ink)'}">${title}</h1>
+        ${left != null ? `<div class="num" style="font-size:110px;line-height:1;letter-spacing:-.03em">${left}<small style="font-size:30px;color:var(--muted)"> s</small></div>` : `<p style="margin:0;font-size:24px;color:var(--muted)">${sub}</p>`}
+      </div>${keypad()}</div>`;
+  }
+  const sure = now() - S.confirmDisarm < 5000;
+  return `<div style="height:744px;box-sizing:border-box;padding:56px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:28px;text-align:center;position:relative">${clock}
+    ${shield(240)}
+    <h1 style="margin:12px 0 0;font-size:70px;line-height:1.02;font-weight:500;letter-spacing:-.025em;color:${urgent ? color : 'var(--ink)'}">${title}</h1>
+    <p style="margin:0;font-size:26px;color:var(--muted)">${sub}</p>
+    <button data-a="disarm" class="solid" style="margin-top:20px;height:76px;padding:0 48px;border-radius:38px;font-size:24px;font-weight:600;text-align:center;${sure ? 'background:var(--red);color:#fff' : ''}">${sure ? 'Toca per confirmar' : 'Desactivar'}</button>
+  </div>`;
+}
+
 function viewHome() {
+  if (ALARM_ARMED.includes(alarmState()) || ['pending', 'triggered'].includes(alarmState())) return viewAlarm();
   const [sc, ...rest] = stories();
   const toneColor = t => t === 'warn' ? 'var(--warn)' : t === 'good' ? 'var(--accent)' : 'var(--muted)';
   const kc = toneColor(sc.tone);
@@ -897,6 +957,7 @@ function render() {
   const theme = params.get('tema') || (st(ENT.sun) === 'below_horizon' ? 'fosc' : 'clar');
   document.documentElement.classList.toggle('fosc', theme === 'fosc');
   const v = S.view;
+  if (alarmState() === 'pending') setTimeout(schedule, 1000);
   $('view').innerHTML = v === 'llums' ? viewLlums() : v === 'persianes' ? viewPersianes() : v === 'portes' ? viewPortes() : v === 'energia' ? viewEnergia() : v === 'exterior' ? viewExterior() : v === 'media' ? viewMedia() : v === 'agenda' ? viewAgenda() : v === 'avisos' ? viewAvisos() : viewHome();
   const net = $('net');
   const showNet = !demo && (S.authError || (!S.connected && (S.everConnected || performance.now() > 5000)));
@@ -914,7 +975,7 @@ function toast(msg) {
 let idleTimer;
 function touched() {
   clearTimeout(idleTimer);
-  idleTimer = setTimeout(() => { if (S.view !== 'home') { S.view = 'home'; render(); } }, IDLE_MS);
+  idleTimer = setTimeout(() => { if (S.view !== 'home' || S.code) { S.view = 'home'; S.code = ''; render(); } }, IDLE_MS);
   requestWakeLock();
 }
 document.addEventListener('pointerdown', touched, { passive: true });
@@ -942,6 +1003,9 @@ $('view').addEventListener('click', e => {
   else if (a === 'media') mediaCmd(b.dataset.id, b.dataset.c);
   else if (a === 'sources') { S.srcOpen = S.srcOpen === b.dataset.id ? null : b.dataset.id; render(); }
   else if (a === 'source') { S.srcOpen = null; render(); callService('media_player', 'select_source', b.dataset.id, { source: b.dataset.s }, 'No s\'ha pogut canviar la font').catch(() => {}); }
+  else if (a === 'key') { if (S.code.length < 10) S.code += b.dataset.k; render(); }
+  else if (a === 'keydel') { S.code = S.code.slice(0, -1); render(); }
+  else if (a === 'disarm') { if (alarmNeedsCode() || now() - S.confirmDisarm < 5000) disarm(); else { S.confirmDisarm = now(); render(); setTimeout(schedule, 5100); } }
   else if (a === 'covers') COVERS.filter(c => !b.dataset.f || c[3] === b.dataset.f).forEach(([id]) => setCover(id, +b.dataset.p));
 });
 

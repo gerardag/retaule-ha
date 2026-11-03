@@ -1,3 +1,5 @@
+<img src="web/favicon.svg" width="96" alt="">
+
 # Retaule
 
 Com els retaules antics, panells penjats a la paret que expliquen una història, però de casa teva.

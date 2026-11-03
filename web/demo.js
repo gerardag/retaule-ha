@@ -47,6 +47,7 @@ window.PANTALLA_DEMO = function (name, app) {
   const SC = {
     descompte: '12:40', plats: '15:05', roba: '16:58', finestres: '19:20', sensor: '20:10',
     pluja: '10:15', tempesta: '17:40', nit: '23:30', agenda: '16:50',
+    alarma: '23:40', alarmaboto: '08:10', entrada: '18:05', sona: '03:12',
   };
   const [hh, mm] = (SC[name] || SC.descompte).split(':').map(Number);
   const target = new Date(); target.setHours(hh, mm, 0, 0);
@@ -56,7 +57,7 @@ window.PANTALLA_DEMO = function (name, app) {
 
   const E = {};
   const set = (id, s, a = {}, lcMin = 120) => { E[id] = { s: String(s), a, lc: ago(lcMin), lu: ago(lcMin) }; };
-  const night = name === 'nit';
+  const night = ['nit', 'alarma', 'sona'].includes(name);
   set('sun.sun', night ? 'below_horizon' : 'above_horizon');
   set('sensor.exterior_temperatura', { descompte: 17, plats: 19, roba: 18, finestres: 11, sensor: 11, pluja: 13, tempesta: 16, nit: 9 }[name] ?? 15);
   set('sensor.exterior_humitat', name === 'pluja' ? 94 : 60);
@@ -82,7 +83,9 @@ window.PANTALLA_DEMO = function (name, app) {
   set('binary_sensor.porta_entrada', 'off', { friendly_name: 'Porta entrada' });
   set('binary_sensor.finestra_habitacio', 'off', { friendly_name: 'Finestra habitació' });
   set('binary_sensor.portes_i_finestres', name === 'finestres' ? 'on' : 'off', { entity_id: ops });
-  set('alarm_control_panel.casa', night ? 'armed_night' : 'disarmed');
+  // Alarma: a 'alarma' i 'entrada' demana codi (el de la demo és 1234); a 'alarmaboto' no.
+  const alarm = { alarma: 'armed_night', alarmaboto: 'armed_away', entrada: 'pending', sona: 'triggered', nit: 'armed_night' }[name] || 'disarmed';
+  set('alarm_control_panel.casa', alarm, { code_format: name === 'alarmaboto' || name === 'nit' ? null : 'number', delay: name === 'entrada' ? 30 : null }, name === 'entrada' ? 8 / 60 : 95);
   set('sensor.llamps_distancia', name === 'tempesta' ? 8 : 30, {}, 3);
   set('sensor.llamps_comptador', name === 'tempesta' ? 40 : 0, {}, 3);
   set('sensor.vpd', 1.6);
@@ -133,6 +136,12 @@ window.PANTALLA_DEMO = function (name, app) {
       if (msg.type === 'call_service') {
         const ids = [].concat(msg.target.entity_id);
         const c = {};
+        if (msg.domain === 'alarm_control_panel') {
+          const e = E[ids[0]];
+          if (e.a.code_format && msg.service_data.code !== '1234') return Promise.reject(new Error('codi'));
+          setTimeout(() => app.applyEvent({ c: { [ids[0]]: { '+': { s: 'disarmed', lc: Date.now() / 1000 } } } }), 600);
+          return Promise.resolve({});
+        }
         for (const id of ids) {
           if (msg.domain === 'cover') {
             const p = msg.service === 'open_cover' ? 100 : msg.service === 'close_cover' ? 0 : msg.service_data.position;
