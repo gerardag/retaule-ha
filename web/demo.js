@@ -16,6 +16,7 @@ window.PANTALLA_DEMO_CONFIG = {
   },
   discount: { from: 12, to: 18, percent: 45 },
   night: { from: 0, to: 7, scene: 'scene.anar_a_dormir' },
+  doorbell: { sensor: 'binary_sensor.timbre_visitant', camera: 'camera.timbre', replies: 'select.timbre_resposta_rapida' },
   lights: [
     { entity: 'light.lampara_sofa', zone: 'Menjador', name: 'Làmpara sofà' },
     { entity: 'light.lampareta_tv', zone: 'Menjador', name: 'Lampareta TV' },
@@ -57,7 +58,7 @@ window.PANTALLA_DEMO = function (name, app) {
   const SC = {
     descompte: '12:40', plats: '15:05', roba: '16:58', finestres: '19:20', sensor: '20:10',
     pluja: '10:15', tempesta: '17:40', nit: '23:30', agenda: '16:50',
-    rentant: '15:20', alarma: '23:40', alarmaboto: '08:10', entrada: '18:05', sona: '03:12',
+    rentant: '15:20', timbre: '18:05', alarma: '23:40', alarmaboto: '08:10', entrada: '18:05', sona: '03:12',
   };
   const [hh, mm] = (SC[name] || SC.descompte).split(':').map(Number);
   const target = new Date(); target.setHours(hh, mm, 0, 0);
@@ -93,6 +94,9 @@ window.PANTALLA_DEMO = function (name, app) {
   set('input_boolean.rentadora', 'off', {}, name === 'roba' ? 16 : 600);
   set('counter.rentaplats_any', 214);
   set('counter.rentadores_any', 168);
+  set('binary_sensor.timbre_visitant', name === 'timbre' ? 'on' : 'off', {}, name === 'timbre' ? 0.3 : 600);
+  set('camera.timbre', 'idle');
+  set('select.timbre_resposta_rapida', 'unknown', { options: ["I'm sorry. I think you've knocked on the wrong door.", 'Hi, we will be right there. Please wait a moment.', 'Hi, please leave the package at the door. We will get it later.'] });
   set('sensor.rentadora_estat', name === 'rentant' ? 'run' : 'stop');
   set('sensor.rentadora_fase', name === 'rentant' ? 'rinse' : 'none');
   set('sensor.rentadora_final', new Date(target.getTime() + 48 * 60000).toISOString());

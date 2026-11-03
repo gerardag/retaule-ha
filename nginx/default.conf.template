@@ -19,6 +19,12 @@ server {
         add_header Cache-Control "no-store";
     }
 
+    # Vídeo del timbre (HLS de les càmeres de HA).
+    location /api/hls/ {
+        proxy_pass http://${HA_HOST};
+        proxy_buffering off;
+    }
+
     # Sense X-Forwarded-For: HA veu l'adreça del servidor, que és a la xarxa local.
     location = /api/websocket {
         proxy_pass http://${HA_HOST};

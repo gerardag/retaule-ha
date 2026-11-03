@@ -45,6 +45,9 @@ window.PANTALLA_CONFIG = {
     alarm: 'alarm_control_panel.casa',
   },
 
+  // Timbre: quan sensor s'activa, vídeo en directe de la càmera i respostes ràpides (select del timbre, opcional).
+  doorbell: { sensor: 'binary_sensor.timbre_visitor', camera: 'camera.timbre_sub', replies: 'select.timbre_play_quick_reply_message' },
+
   // Mode nit (pantalla fosca amb l'hora): sol de 0 a 7 h o en activar aquesta escena. night: false el treu.
   night: { from: 0, to: 7, scene: 'scene.anar_a_dormir' },
 
