@@ -43,6 +43,9 @@ window.PANTALLA_CONFIG = {
     alarm: 'alarm_control_panel.casa',
   },
 
+  // Mode nit (pantalla fosca amb l'hora): sol de 0 a 7 h o en activar aquesta escena. night: false el treu.
+  night: { from: 0, to: 7, scene: 'scene.anar_a_dormir' },
+
   // Franja de llum barata; esborra-ho si no en tens. El preu del kWh surt del panell d'energia de HA.
   discount: { from: 12, to: 18, percent: 45 },
 
@@ -69,6 +72,14 @@ window.PANTALLA_CONFIG = {
   // Opcional: script de HA que rep {code}, el comprova, desactiva l'alarma i torna {ok: true|false} amb stop + response_variable.
   // Amb això la pantalla sempre demana codi (vegeu el README).
   // alarmScript: 'script.desactivar_alarma_pantalla',
+  // Tocant l'hora s'obre el panell de qui és a casa (entitats person.* o device_tracker.*).
+  people: [
+    { entity: 'person.anna', name: 'Anna' },
+  ],
+  // Estances del panell de calefacció (s'obre tocant la fila de la temperatura interior), agrupades per planta.
+  rooms: [
+    { name: 'Menjador', temp: 'sensor.menjador_temperatura', hum: 'sensor.menjador_humitat', floor: 'Planta 0' },
+  ],
   calendars: [
     { entity: 'calendar.personal', name: 'Personal' },
   ],

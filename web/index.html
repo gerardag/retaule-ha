@@ -17,6 +17,7 @@
 <style>
 :root{--ok:#15803D;--orange:#EA580C;--bg:#DDE7F3;--ink:#0B1B3A;--muted:#44557A;--line:rgba(11,27,58,0.16);--card:#EAF0F8;--chart:#A9BBD6;--accent:#1D4ED8;--warn:#A93A0A;--cal2:#0F766E;--red:#DC2626;--z0:#B45309;--z1:#7C3AED;--z2:#BE185D;--z3:#1D4ED8;--z4:#15803D;--z5:#0E7490;--zi0:#FBBF24;--zi1:#C4B5FD;--zi2:#F9A8D4;--zi3:#93C5FD;--zi4:#86EFAC;--zi5:#67E8F9}
 :root.fosc{--ok:#4ADE80;--orange:#FB923C;--bg:#0C1730;--ink:#E6EDF7;--muted:#A3B3CE;--line:rgba(230,237,247,0.14);--card:#15254A;--chart:#3A5486;--accent:#7FA7FF;--warn:#FFA45C;--cal2:#5EEAD4;--red:#F87171;--z0:#FBBF24;--z1:#C4B5FD;--z2:#F9A8D4;--z3:#93C5FD;--z4:#86EFAC;--z5:#67E8F9;--zi0:#B45309;--zi1:#7C3AED;--zi2:#BE185D;--zi3:#1D4ED8;--zi4:#15803D;--zi5:#0E7490}
+:root.fosc.nit{--bg:#03060D;--ink:#8F9BB3;--muted:#56627C;--line:rgba(143,155,179,0.14);--card:#0A1224;--accent:#6E8BC9}
 html{--inset-top:env(safe-area-inset-top, 0px);--edge:color-mix(in srgb, var(--ink) 35%, transparent)}
 html,body{margin:0;height:100%;overflow:hidden;background:var(--bg);color:var(--ink)}
 body{font-family:'Inter Tight',system-ui,-apple-system,sans-serif;-webkit-user-select:none;user-select:none;-webkit-tap-highlight-color:transparent;-webkit-text-size-adjust:100%}
@@ -76,6 +77,11 @@ const COVERS = (CFG.covers || []).map(c => [c.entity, c.name || c.entity, c.zone
 const FLOORS = [...new Set(COVERS.map(c => c[3]).filter(Boolean))];
 // Portes i finestres amb nom i zona. Sense llista, surten els membres del grup entities.openings.
 const OPENINGS = (CFG.openings || []).map(o => [o.entity, o.name || '', o.zone || '']);
+// Persones (entitats person.* o device_tracker.*) i estances amb temperatura i humitat per al panell de calefacció.
+const PEOPLE = (CFG.people || []).map(p => [p.entity, p.name || p.entity]);
+const ROOMS = (CFG.rooms || []).map(r => [r.name, r.temp, r.hum || '', r.floor || '']);
+// Mode nit: pantalla fosca i mínima, sola entre aquestes hores o en activar l'escena night.scene. night: false el desactiva.
+const NIGHT = CFG.night === false ? null : { from: 0, to: 7, ...(CFG.night || {}) };
 // Franja de llum barata: {from: 12, to: 18, percent: 45} i, si n'hi ha, l'entitat binary_sensor que la marca.
 const DISC = CFG.discount || null;
 // Un color per al text de cada zona, el mateix als llums i a les persianes. Sobre fons fosc (llum encès) va el to invers.
@@ -96,6 +102,7 @@ const S = {
   strikes: null, // {lc, count}
   code: '',      // codi de l'alarma que s'està teclejant; no es guarda enlloc
   confirmDisarm: 0,
+  nightOverride: null, // {value, auto}: el que s'ha triat a mà mana fins que l'horari canvia
 };
 let offset = 0; // el mode demo hi posa l'hora de l'escenari
 const now = () => Date.now() + offset;
@@ -247,6 +254,7 @@ function runScene(i) {
   const [, domain, service, target] = SCENES[i];
   if (!domain) return;
   if (domain === 'homeassistant') for (const id of target) S.pending[id] = { state: 'off', t: now() };
+  if (NIGHT?.scene && target === NIGHT.scene) { S.nightOverride = { value: true, auto: nightAuto() }; S.view = 'home'; }
   render();
   callService(domain, service, target, null, 'No s\'ha pogut activar l\'escena').catch(() => { S.pending = {}; render(); });
 }
@@ -518,6 +526,9 @@ const ICON = {
   flame: '<path d="M12 22c4 0 7-2.7 7-6.6 0-3.1-2-5.6-3.6-7.2-.4 1.6-1.3 2.8-2.4 3.3.3-3.3-1.2-6.6-4-8.5.2 3-1.6 5.4-3.1 7.3C4.6 11.9 5 13.6 5 15.4 5 19.3 8 22 12 22z"/>',
   bell: '<path d="M6 16V11a6 6 0 0 1 12 0v5l2 2H4z"/><path d="M10 21h4"/>',
   door: '<path d="M6 21V4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v17"/><path d="M3 21h18"/><path d="M14.5 12h.01" stroke-width="2.4"/>',
+  moon: '<path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z"/>',
+  sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>',
+  user: '<circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/>',
   shield: '<path d="M12 3l8 3v6c0 4.8-3.4 8.3-8 9-4.6-.7-8-4.2-8-9V6z"/>',
   del: '<path d="M9 5h11v14H9l-6-7z"/><path d="M12 9l5 6M17 9l-5 6"/>',
   blinds: '<path d="M4 3h16M5 3v14M19 3v14M5 7h14M5 11h14M5 15h14"/><path d="M12 17v4"/>',
@@ -655,8 +666,105 @@ function viewAlarm() {
   </div>`;
 }
 
+// ---------- Mode nit ----------
+function nightAuto() {
+  if (!NIGHT) return false;
+  const h = new Date(now()).getHours();
+  return NIGHT.from > NIGHT.to ? h >= NIGHT.from || h < NIGHT.to : h >= NIGHT.from && h < NIGHT.to;
+}
+function isNight() {
+  if (params.has('nit')) return params.get('nit') !== '0';
+  const auto = nightAuto();
+  if (S.nightOverride && S.nightOverride.auto !== auto) S.nightOverride = null;
+  return S.nightOverride ? S.nightOverride.value : auto;
+}
+
+function viewNit() {
+  const d = new Date(now());
+  const wd = d.toLocaleDateString('ca-ES', { weekday: 'long' });
+  const date = wd.charAt(0).toUpperCase() + wd.slice(1) + ', ' + d.toLocaleDateString('ca-ES', { day: 'numeric', month: 'long' });
+  const warns = stories().filter(x => x.tone === 'warn').slice(0, 2);
+  const ev = (S.events || []).find(e => !e.allDay && e.start > now());
+  const line = (html, color = 'var(--muted)') => `<div style="font-size:22px;color:${color};display:flex;align-items:center;gap:10px;justify-content:center">${html}</div>`;
+  const lines = [
+    ...warns.map(x => line(`<span style="width:8px;height:8px;border-radius:50%;background:var(--orange)"></span>${x.mini || x.title}`, 'var(--orange)')),
+    ev ? line(`${svg(ICON.cal, 20, 1.6)}${dayName(ev.start) === 'avui' ? '' : esc(dayName(ev.start)) + ' '}${hhmm(ev.start)} · ${esc(ev.summary)}`) : '',
+  ].filter(Boolean).join('');
+  const temps = [ENT.extTemp ? `Fora ${deg(num(ENT.extTemp), 0)}` : '', ENT.intTemp ? `${esc(ROOM)} ${deg(num(ENT.intTemp), 1)}` : ''].filter(Boolean).join('<span style="opacity:.4"> · </span>');
+  return `<div style="height:744px;box-sizing:border-box;padding:60px;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:18px;position:relative">
+    <div class="num" style="font-size:180px;line-height:1;font-weight:300;letter-spacing:-.04em">${hhmm(now())}</div>
+    <div style="font-size:24px;color:var(--muted)">${esc(date)}</div>
+    ${temps ? `<div class="num" style="font-size:26px;margin-top:8px">${temps}</div>` : ''}
+    ${lines ? `<div style="display:flex;flex-direction:column;gap:14px;margin-top:28px">${lines}</div>` : ''}
+    <button data-a="night" data-n="0" class="outline pillbtn" style="position:absolute;bottom:48px;left:50%;transform:translateX(-50%);opacity:.7">Pantalla normal</button>
+    ${bell()}
+  </div>`;
+}
+
+// ---------- Persones ----------
+function whereIs(id) {
+  const s = st(id);
+  if (s === 'home') return 'A casa';
+  if (s === 'not_home') return 'Fora';
+  if (!s || s === 'unknown' || s === 'unavailable') return 'No se sap';
+  return s.charAt(0).toUpperCase() + s.slice(1).replace(/_/g, ' ');
+}
+function since(t) {
+  const days = Math.round((startOfDay(now()) - startOfDay(t)) / (24 * 60 * MIN));
+  if (days <= 0) return 'des de les ' + hhmm(t);
+  if (days === 1) return 'des d’ahir a les ' + hhmm(t);
+  return 'des del ' + new Date(t).toLocaleDateString('ca-ES', { weekday: 'long', day: 'numeric' });
+}
+function viewCasa() {
+  const home = PEOPLE.filter(([id]) => st(id) === 'home').length;
+  const tiles = PEOPLE.map(([id, name]) => {
+    const on = st(id) === 'home', e = ent(id);
+    return `<div class="tile${on ? ' on' : ''}" style="height:150px">
+      <span style="opacity:.85">${svg(ICON.user, 26, 1.6)}</span>
+      <span style="font-size:22px;font-weight:500;margin-top:auto">${esc(name)}</span>
+      <span style="font-size:15px;opacity:.8">${whereIs(id)}${e ? ' · ' + since(e.last_changed) : ''}</span></div>`;
+  }).join('');
+  const count = home === 0 ? 'ningú' : home === PEOPLE.length ? 'tothom' : home + ' de ' + PEOPLE.length;
+  return `<div class="panel">${head(`A casa <span class="num" style="color:var(--muted);font-weight:400">· ${count}</span>`)}
+  <div style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px">${tiles}</div></div>`;
+}
+
+// ---------- Calefacció ----------
+function viewCalefaccio() {
+  const c = ENT.climate;
+  const cur = attr(c, 'current_temperature') ?? num(ENT.intTemp);
+  const target = attr(c, 'temperature');
+  const heat = heatingPct();
+  const mode = st(c), action = attr(c, 'hvac_action');
+  const state = mode === 'off' ? 'Apagada' : action === 'heating' || heat > 0 ? 'Escalfant' : action === 'idle' ? 'En repòs' : mode === 'auto' ? 'Programada' : '–';
+  const preset = { home: 'Casa', away: 'Fora' }[attr(c, 'preset_mode')] || '';
+  const fact = (k, v) => `<div style="display:flex;flex-direction:column;gap:6px"><span class="lbl">${k}</span><span style="font-size:22px;font-weight:500">${v}</span></div>`;
+  const floors = [...new Set(ROOMS.map(r => r[3]))];
+  const col = floor => {
+    const rooms = ROOMS.filter(r => r[3] === floor);
+    const temps = rooms.map(r => num(r[1])).filter(v => v != null);
+    const avg = temps.length ? deg(temps.reduce((a, b) => a + b, 0) / temps.length, 1) : '';
+    return `<div style="flex:1 1 0;display:flex;flex-direction:column;min-width:0">
+      ${floor ? `<div style="display:flex;justify-content:space-between;padding-bottom:10px"><span class="lbl">${esc(floor)}</span><span class="lbl num">${avg}</span></div>` : ''}
+      ${rooms.map(([name, t, h]) => `<div style="display:flex;justify-content:space-between;align-items:baseline;padding:14px 0;border-top:1px solid var(--line)">
+        <span style="font-size:17px;font-weight:500;color:${ZONES.includes(name) ? zoneColor(name) : 'var(--muted)'}">${esc(name)}</span>
+        <span class="num" style="font-size:22px;font-weight:500">${deg(num(t), 1)}${h ? ` <small style="font-size:15px;font-weight:400;color:var(--muted)">${num(h) == null ? '–' : Math.round(num(h)) + '%'}</small>` : ''}</span></div>`).join('')}</div>`;
+  };
+  return `<div class="panel">${head('Calefacció')}
+  <div style="display:flex;align-items:center;gap:56px">
+    <div class="num" style="display:flex;align-items:baseline;gap:18px;font-size:72px;font-weight:400;letter-spacing:-.03em;line-height:1">
+      ${deg(cur, 1)}<span style="font-size:36px;color:var(--muted)">→</span><span style="color:${heat > 0 ? 'var(--warn)' : 'var(--ink)'}">${target == null ? '–' : deg(target, 1)}</span></div>
+    <div style="flex:1 1 auto;display:flex;flex-direction:column;gap:10px">
+      <div style="display:flex;align-items:center;gap:8px;font-size:22px;font-weight:500;color:${heat > 0 ? 'var(--warn)' : 'var(--muted)'}">${svg(ICON.flame, 24, 1.8)}<span class="num">${Math.round(heat)}%</span></div>
+    </div>
+  </div>
+  <div style="display:flex;gap:48px">${fact('Estat', state)}${preset ? fact('Mode', preset) : ''}</div>
+  ${ROOMS.length ? `<div style="display:flex;gap:40px;margin-top:36px">${floors.map(col).join('')}</div>` : ''}</div>`;
+}
+
 function viewHome() {
   if (ALARM_ARMED.includes(alarmState()) || ['pending', 'triggered'].includes(alarmState())) return viewAlarm();
+  if (isNight()) return viewNit();
   const [sc, ...rest] = stories();
   const toneColor = t => t === 'warn' ? 'var(--warn)' : t === 'good' ? 'var(--accent)' : 'var(--muted)';
   const kc = toneColor(sc.tone);
@@ -700,13 +808,13 @@ function viewHome() {
   <div style="width:1px;background:var(--line);flex:none"></div>
   <div style="width:330px;flex:none;display:flex;flex-direction:column">
     <div style="padding-bottom:16px">
-      <div class="num" style="font-size:72px;line-height:1;font-weight:400;letter-spacing:-.03em">${hhmm(now())}</div>
+      <${PEOPLE.length ? 'button data-a="go" data-v="casa" aria-label="Qui és a casa"' : 'div'} class="num" style="display:block;font-size:72px;line-height:1;font-weight:400;letter-spacing:-.03em">${hhmm(now())}</${PEOPLE.length ? 'button' : 'div'}>
       <div style="margin-top:8px;font-size:18px;color:var(--muted)">${esc(date)}</div>
     </div>
     ${!ENT.extTemp ? '' : `<button class="row" data-a="go" data-v="exterior" aria-label="Temps exterior">${svg(ICON[raining ? 'rain' : 'thermo'])}<div><span class="lbl">Exterior</span>
       <span class="num big">${deg(num(ENT.extTemp), 0)} <small>${raining ? 'Plou' : hum == null ? '' : Math.round(hum) + '% humitat'}</small></span></div></button>`}
-    ${!ENT.intTemp ? '' : `<div class="row">${svg(ICON.home)}<div><span class="lbl">${esc(ROOM)}</span>
-      <span class="num big">${deg(num(ENT.intTemp), 1)} <small style="color:${heat > 0 ? 'var(--warn)' : 'var(--muted)'}">${heat > 0 ? `<span aria-label="Escalfant" style="display:inline-flex;align-items:center;gap:3px;vertical-align:-2px">${svg(ICON.flame, 18, 1.8)}${heatTxt}</span>` : esc(heatTxt)}</small></span></div></div>`}
+    ${!ENT.intTemp ? '' : `<${ENT.climate ? 'button data-a="go" data-v="calefaccio"' : 'div'} class="row">${svg(ICON.home)}<div><span class="lbl">${esc(ROOM)}</span>
+      <span class="num big">${deg(num(ENT.intTemp), 1)} <small style="color:${heat > 0 ? 'var(--warn)' : 'var(--muted)'}">${heat > 0 ? `<span aria-label="Escalfant" style="display:inline-flex;align-items:center;gap:3px;vertical-align:-2px">${svg(ICON.flame, 18, 1.8)}${heatTxt}</span>` : esc(heatTxt)}</small></span></div></${ENT.climate ? 'button' : 'div'}>`}
     ${!DISC ? '' : `<button class="row" data-a="go" data-v="energia">${svg(ICON.bolt)}<div><span class="lbl">Llum</span>
       <span class="num big" style="color:${disc ? 'var(--accent)' : 'var(--ink)'}">${disc ? '−' + DISC.percent + '%' : 'Normal'} <small>${disc ? `fins a les ${pad(DISC.to)}:00` : h < DISC.from ? `descompte a les ${DISC.from} h` : `descompte demà ${DISC.from} h`}</small></span></div></button>`}
     ${!ENT.power ? '' : `<button class="row" data-a="go" data-v="energia">${svg(ICON.plug)}<div><span class="lbl">Consum ara</span>
@@ -956,16 +1064,22 @@ let rafPending = false;
 function schedule() { if (!rafPending) { rafPending = true; requestAnimationFrame(() => { rafPending = false; render(); }); } }
 
 let sliding = false;
+const darkScheme = matchMedia('(prefers-color-scheme: dark)');
+darkScheme.addEventListener('change', () => render());
 function render() {
   if (sliding) return;
   checkFinish(ENT.dishwasher);
   checkFinish(ENT.washer);
   checkStrikes();
-  const theme = params.get('tema') || (st(ENT.sun) === 'below_horizon' ? 'fosc' : 'clar');
-  document.documentElement.classList.toggle('fosc', theme === 'fosc');
+  if (S.view === 'alarma' && !ALARM_ARMED.includes(alarmState())) S.view = 'home';
   const v = S.view;
+  const nightView = v === 'home' && isNight() && !ALARM_ARMED.includes(alarmState()) && !['pending', 'triggered'].includes(alarmState());
+  // El tema segueix l'aspecte del sistema (clar o fosc a l'iPad); el mode nit sempre és fosc.
+  const theme = nightView ? 'fosc' : params.get('tema') || (darkScheme.matches ? 'fosc' : 'clar');
+  document.documentElement.classList.toggle('fosc', theme === 'fosc');
+  document.documentElement.classList.toggle('nit', nightView);
   if (alarmState() === 'pending') setTimeout(schedule, 1000);
-  $('view').innerHTML = v === 'llums' ? viewLlums() : v === 'persianes' ? viewPersianes() : v === 'portes' ? viewPortes() : v === 'energia' ? viewEnergia() : v === 'exterior' ? viewExterior() : v === 'media' ? viewMedia() : v === 'agenda' ? viewAgenda() : v === 'avisos' ? viewAvisos() : viewHome();
+  $('view').innerHTML = v === 'llums' ? viewLlums() : v === 'persianes' ? viewPersianes() : v === 'portes' ? viewPortes() : v === 'energia' ? viewEnergia() : v === 'exterior' ? viewExterior() : v === 'media' ? viewMedia() : v === 'agenda' ? viewAgenda() : v === 'avisos' ? viewAvisos() : v === 'alarma' ? viewAlarm() : v === 'casa' ? viewCasa() : v === 'calefaccio' ? viewCalefaccio() : viewHome();
   const net = $('net');
   const showNet = !demo && (S.authError || (!S.connected && (S.everConnected || performance.now() > 5000)));
   net.style.display = showNet ? 'flex' : 'none';
@@ -1013,6 +1127,7 @@ $('view').addEventListener('click', e => {
   else if (a === 'key') { if (S.code.length < 10) S.code += b.dataset.k; render(); }
   else if (a === 'keydel') { S.code = S.code.slice(0, -1); render(); }
   else if (a === 'disarm') { if (alarmNeedsCode() || now() - S.confirmDisarm < 5000) disarm(); else { S.confirmDisarm = now(); render(); setTimeout(schedule, 5100); } }
+  else if (a === 'night') { S.nightOverride = { value: b.dataset.n === '1', auto: nightAuto() }; render(); }
   else if (a === 'covers') COVERS.filter(c => !b.dataset.f || c[3] === b.dataset.f).forEach(([id]) => setCover(id, +b.dataset.p));
 });
 

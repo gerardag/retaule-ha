@@ -14,6 +14,7 @@ window.PANTALLA_DEMO_CONFIG = {
     lightningDist: 'sensor.llamps_distancia', lightningCount: 'sensor.llamps_comptador',
   },
   discount: { from: 12, to: 18, percent: 45 },
+  night: { from: 0, to: 7, scene: 'scene.anar_a_dormir' },
   lights: [
     { entity: 'light.lampara_sofa', zone: 'Menjador', name: 'Làmpara sofà' },
     { entity: 'light.lampareta_tv', zone: 'Menjador', name: 'Lampareta TV' },
@@ -41,6 +42,14 @@ window.PANTALLA_DEMO_CONFIG = {
     { entity: 'media_player.sonos_estudi', name: 'Sonos estudi' },
   ],
   calendars: [{ entity: 'calendar.personal', name: 'Personal' }, { entity: 'calendar.familia', name: 'Família' }],
+  people: [{ entity: 'person.anna', name: 'Anna' }, { entity: 'person.marc', name: 'Marc' }],
+  rooms: [
+    { name: 'Menjador', temp: 'sensor.menjador_temperatura', hum: 'sensor.menjador_humitat', floor: 'Planta 0' },
+    { name: 'Cuina', temp: 'sensor.cuina_temperatura', hum: 'sensor.cuina_humitat', floor: 'Planta 0' },
+    { name: 'Habitació', temp: 'sensor.habitacio_temperatura', hum: 'sensor.habitacio_humitat', floor: 'Planta 1' },
+    { name: 'Estudi', temp: 'sensor.estudi_temperatura', hum: 'sensor.estudi_humitat', floor: 'Planta 1' },
+    { name: 'Bany', temp: 'sensor.bany_temperatura', hum: 'sensor.bany_humitat', floor: 'Planta 1' },
+  ],
 };
 
 window.PANTALLA_DEMO = function (name, app) {
@@ -69,7 +78,12 @@ window.PANTALLA_DEMO = function (name, app) {
   set('sensor.uv', night ? 0 : 3);
   set('sensor.radiacio_solar', night ? 0 : 420);
   set('sensor.menjador_temperatura', name === 'finestres' ? 20.1 : 21.4);
-  set('climate.menjador', 'heat', { temperature: 21 });
+  const heating = name === 'finestres' ? 62 : name === 'sensor' ? 35 : 0;
+  set('climate.menjador', 'auto', { temperature: 21, current_temperature: name === 'finestres' ? 20.1 : 21.4, hvac_action: heating ? 'heating' : 'idle', preset_mode: 'home' });
+  const rooms = { menjador: [21.4, 55], cuina: [21.8, 61], habitacio: [20.6, 64], estudi: [20.9, 63], bany: [20.2, 70] };
+  for (const [k, [t, h]] of Object.entries(rooms)) { if (k !== 'menjador') set(`sensor.${k}_temperatura`, t); set(`sensor.${k}_humitat`, h); }
+  set('person.anna', 'home', {}, 190);
+  set('person.marc', ['plats', 'roba', 'descompte'].includes(name) ? 'not_home' : 'home', {}, 75);
   set('sensor.menjador_calefaccio', name === 'finestres' ? 62 : name === 'sensor' ? 35 : 0);
   set('binary_sensor.llum_barata', ['descompte', 'plats', 'roba', 'tempesta'].includes(name) ? 'on' : 'off');
   set('sensor.consum', { descompte: 640, plats: 310, nit: 190 }[name] ?? 450);
