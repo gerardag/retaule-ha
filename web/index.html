@@ -649,8 +649,8 @@ function viewHome() {
     <div style="margin-top:auto;display:flex;gap:12px">
       ${!LIGHTS.length ? '' : `<button data-a="go" data-v="llums" aria-label="${lightsLabel}" class="${n ? 'solid' : 'outline'}" style="min-width:60px;height:60px;box-sizing:border-box;border-radius:30px;padding:0 18px;display:flex;align-items:center;justify-content:center;gap:6px;font-size:20px;font-weight:600;flex:none">${svg(ICON.bulb, 24, 1.8)}<span class="num">${n}</span></button>`}
       ${!openings.length ? '' : `<button data-a="go" data-v="portes" aria-label="Portes i finestres${opened ? ': ' + opened + (opened === 1 ? ' oberta' : ' obertes') : ''}" class="${opened ? 'solid' : 'outline'}" style="min-width:60px;height:60px;box-sizing:border-box;border-radius:30px;padding:0 ${opened ? 18 : 0}px;display:flex;align-items:center;justify-content:center;gap:6px;font-size:20px;font-weight:600;flex:none">${svg(ICON.door, 24, 1.8)}${opened ? `<span class="num">${opened}</span>` : ''}</button>`}
-      ${!MEDIA.length ? '' : `<button data-a="go" data-v="media" aria-label="Música i tele" class="${mediaActive().length ? 'solid' : 'outline'}" style="width:60px;height:60px;border-radius:30px;display:flex;align-items:center;justify-content:center;flex:none">${svg(ICON.music, 24, 1.8)}</button>`}
       ${!COVERS.length ? '' : `<button data-a="go" data-v="persianes" aria-label="Persianes" class="outline" style="width:60px;height:60px;border-radius:30px;display:flex;align-items:center;justify-content:center;flex:none">${svg(ICON.blinds, 24, 1.8)}</button>`}
+      ${!MEDIA.length ? '' : `<button data-a="go" data-v="media" aria-label="Música i tele" class="${mediaActive().length ? 'solid' : 'outline'}" style="width:60px;height:60px;border-radius:30px;display:flex;align-items:center;justify-content:center;flex:none">${svg(ICON.music, 24, 1.8)}</button>`}
     </div>
   </div>
   ${bell()}
