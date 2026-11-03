@@ -669,14 +669,14 @@ function syncCam(show) {
     .then(r => { if (camFor && r?.url) playHls(v, (CFG.haUrl || '').replace(/\/$/, '') + r.url); })
     .catch(() => { camFor = null; toast('No s\'ha pogut obrir el vídeo del timbre'); });
 }
-function viewTimbre() {
+function viewTimbre(manual) {
   const opts = DOORBELL.replies ? (attr(DOORBELL.replies, 'options') || []) : [];
   const at = params.has('timbre') ? now() : S.ringAt;
   return `<div style="height:744px;box-sizing:border-box;padding:56px 56px 56px 776px;display:flex;flex-direction:column;position:relative">
     <div style="position:absolute;left:56px;top:117px;width:680px;height:510px;border-radius:20px;background:#000;display:flex;align-items:center;justify-content:center;color:#8F9BB3;font-size:18px">${demo ? 'Aquí es veu el vídeo en directe del timbre' : 'Connectant amb el timbre…'}</div>
     <div class="kicker" style="color:var(--accent)"><i></i><span>Timbre</span></div>
-    <h1 style="margin:20px 0 0;font-size:48px;line-height:1.05;font-weight:500;letter-spacing:-.02em">Truquen a la porta</h1>
-    <p style="margin:12px 0 0;font-size:20px;color:var(--muted)">A les ${hhmm(at)}</p>
+    <h1 style="margin:20px 0 0;font-size:48px;line-height:1.05;font-weight:500;letter-spacing:-.02em">${manual ? 'Porta d’entrada' : 'Truquen a la porta'}</h1>
+    <p style="margin:12px 0 0;font-size:20px;color:var(--muted)">${manual ? 'En directe' : 'A les ' + hhmm(at)}</p>
     ${opts.length ? `<span class="lbl" style="margin-top:36px">Resposta ràpida</span>
     <div style="display:flex;flex-direction:column;gap:10px;margin-top:12px">${opts.map((o, i) => `<button data-a="reply" data-i="${i}" class="outline" style="min-height:56px;padding:10px 20px;border-radius:28px;font-size:17px;font-weight:500;text-align:left">${esc(REPLY_CA[o] || o)}</button>`).join('')}</div>` : ''}
     <div style="margin-top:auto;display:flex;gap:12px">
@@ -1048,7 +1048,8 @@ function viewPortes() {
   }).join('');
   const count = open === 0 ? 'tot tancat' : open === 1 ? '1 oberta' : open + ' obertes';
   return `<div class="panel">${head(`Portes i finestres <span class="num" style="color:var(--muted);font-weight:400">· ${count}</span>`)}
-  <div style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px">${tiles}</div></div>`;
+  <div style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px">${tiles}</div>
+  ${DOORBELL ? `<div style="margin-top:auto;padding-top:24px;border-top:1px solid var(--line)"><button data-a="go" data-v="timbre" class="outline pillbtn" style="display:flex;align-items:center;gap:10px">${svg(ICON.doorbell, 22, 1.7)}Veure la porta</button></div>` : ''}</div>`;
 }
 
 function viewExterior() {
@@ -1185,8 +1186,8 @@ function render() {
   document.documentElement.classList.toggle('fosc', theme === 'fosc');
   document.documentElement.classList.toggle('nit', nightView);
   if (alarmState() === 'pending') setTimeout(schedule, 1000);
-  $('view').innerHTML = v === 'llums' ? viewLlums() : v === 'persianes' ? viewPersianes() : v === 'portes' ? viewPortes() : v === 'energia' ? viewEnergia() : v === 'exterior' ? viewExterior() : v === 'media' ? viewMedia() : v === 'agenda' ? viewAgenda() : v === 'avisos' ? viewAvisos() : v === 'alarma' ? viewAlarm() : v === 'casa' ? viewCasa() : v === 'calefaccio' ? viewCalefaccio() : viewHome();
-  syncCam(ringing && !demo);
+  $('view').innerHTML = v === 'llums' ? viewLlums() : v === 'persianes' ? viewPersianes() : v === 'portes' ? viewPortes() : v === 'energia' ? viewEnergia() : v === 'exterior' ? viewExterior() : v === 'media' ? viewMedia() : v === 'agenda' ? viewAgenda() : v === 'avisos' ? viewAvisos() : v === 'alarma' ? viewAlarm() : v === 'casa' ? viewCasa() : v === 'calefaccio' ? viewCalefaccio() : v === 'timbre' && DOORBELL ? viewTimbre(true) : viewHome();
+  syncCam((ringing || v === 'timbre') && !demo);
   const net = $('net');
   const showNet = !demo && (S.authError || (!S.connected && (S.everConnected || performance.now() > 5000)));
   net.style.display = showNet ? 'flex' : 'none';
@@ -1235,7 +1236,7 @@ $('view').addEventListener('click', e => {
   else if (a === 'keydel') { S.code = S.code.slice(0, -1); render(); }
   else if (a === 'disarm') { if (alarmNeedsCode() || now() - S.confirmDisarm < 5000) disarm(); else { S.confirmDisarm = now(); render(); setTimeout(schedule, 5100); } }
   else if (a === 'night') { S.nightOverride = { value: b.dataset.n === '1', auto: nightAuto() }; render(); }
-  else if (a === 'ringclose') { S.ringClosed = params.has('timbre') ? -1 : S.ringAt; render(); }
+  else if (a === 'ringclose') { if (S.view === 'timbre') S.view = 'portes'; else S.ringClosed = params.has('timbre') ? -1 : S.ringAt; render(); }
   else if (a === 'camsound') { S.camSound = !S.camSound; $('cam').muted = !S.camSound; if (S.camSound) $('cam').play().catch(() => {}); render(); }
   else if (a === 'reply') { const o = attr(DOORBELL.replies, 'options')[+b.dataset.i]; callService('select', 'select_option', DOORBELL.replies, { option: o }, 'No s\'ha pogut enviar el missatge').then(() => toast('Missatge enviat al timbre')).catch(() => {}); }
   else if (a === 'temp') bumpTarget(+b.dataset.d);
