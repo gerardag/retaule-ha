@@ -46,7 +46,7 @@ window.PANTALLA_CONFIG = {
   // Franja de llum barata; esborra-ho si no en tens. El preu del kWh surt del panell d'energia de HA.
   discount: { from: 12, to: 18, percent: 45 },
 
-  // La zona dona color al nom; el mateix color a llums i persianes.
+  // La zona dona color al nom; el mateix color a llums, persianes i portes.
   lights: [
     { entity: 'light.sofa', zone: 'Menjador', name: 'Làmpara sofà' },
     { entity: 'light.entrada', zone: 'Entrada', name: 'Entrada' },
@@ -54,8 +54,13 @@ window.PANTALLA_CONFIG = {
   scenes: [
     { name: 'Relax', entity: 'scene.relax' },
   ],
+  // floor és opcional: amb plantes, surten botons per pujar i baixar les persianes de cada planta.
   covers: [
-    { entity: 'cover.persiana_menjador', name: 'Persiana', zone: 'Menjador' },
+    { entity: 'cover.persiana_menjador', name: 'Persiana', zone: 'Menjador', floor: 'Planta 0' },
+  ],
+  // Sensors de portes i finestres per al panell. Si no hi és, surten els del grup entities.openings.
+  openings: [
+    { entity: 'binary_sensor.porta_entrada', name: 'Porta', zone: 'Entrada' },
   ],
   // Només surten quan sonen, estan en pausa o engegats.
   media: [

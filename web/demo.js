@@ -25,10 +25,15 @@ window.PANTALLA_DEMO_CONFIG = {
   ],
   scenes: [{ name: 'Relax', entity: 'scene.relax' }, { name: 'Anar a dormir', entity: 'scene.anar_a_dormir' }],
   covers: [
-    { entity: 'cover.persiana_menjador', name: 'Persiana', zone: 'Menjador' },
-    { entity: 'cover.persiana_habitacio', name: 'Persiana', zone: 'Habitació' },
-    { entity: 'cover.persiana_porta_cuina', name: 'Porta cuina', zone: 'Cuina' },
-    { entity: 'cover.persiana_finestra_cuina', name: 'Finestra cuina', zone: 'Cuina' },
+    { entity: 'cover.persiana_menjador', name: 'Persiana', zone: 'Menjador', floor: 'Planta 0' },
+    { entity: 'cover.persiana_habitacio', name: 'Persiana', zone: 'Habitació', floor: 'Planta 1' },
+    { entity: 'cover.persiana_porta_cuina', name: 'Porta cuina', zone: 'Cuina', floor: 'Planta 0' },
+    { entity: 'cover.persiana_finestra_cuina', name: 'Finestra cuina', zone: 'Cuina', floor: 'Planta 0' },
+  ],
+  openings: [
+    { entity: 'binary_sensor.porta_entrada', name: 'Porta', zone: 'Entrada' },
+    { entity: 'binary_sensor.finestra_cuina', name: 'Finestra', zone: 'Cuina' },
+    { entity: 'binary_sensor.finestra_habitacio', name: 'Finestra', zone: 'Habitació' },
   ],
   media: [
     { entity: 'media_player.televisio', name: 'Televisió' },
