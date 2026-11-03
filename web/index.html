@@ -102,6 +102,7 @@ const S = {
   strikes: null, // {lc, count}
   code: '',      // codi de l'alarma que s'està teclejant; no es guarda enlloc
   confirmDisarm: 0,
+  setpoint: null,     // {value, t}: consigna triada amb + i − que encara no ha arribat de HA
   nightOverride: null, // {value, auto}: el que s'ha triat a mà mana fins que l'horari canvia
 };
 let offset = 0; // el mode demo hi posa l'hora de l'escenari
@@ -422,6 +423,9 @@ function heatingPct() { const v = num(ENT.heating); return v == null ? 0 : v; }
 function discountLeft() { const end = new Date(now()); end.setHours(DISC.to, 0, 0, 0); return end - now(); }
 function machineFact(id) { return isOn(id) ? 'En marxa' : st(id) === 'off' ? 'Aturat' : '–'; }
 
+// Fases de la rentadora (SmartThings), per a "Ara està …".
+const WASH_PHASE = { wash: 'rentant', ai_wash: 'rentant', pre_wash: 'fent el prerentat', rinse: 'esbandint', ai_rinse: 'esbandint',
+  spin: 'centrifugant', ai_spin: 'centrifugant', drying: 'assecant', weight_sensing: 'pesant la roba', air_wash: 'airejant', cooling: 'refredant' };
 function stories() {
   if (!Object.keys(S.ents).length) return [{ tone: 'info', kicker: 'Casa', title: 'Connectant amb casa…', body: '', facts: [] }];
   const out = [];
@@ -471,6 +475,16 @@ function stories() {
     out.push({ tone: 'good', kicker: 'Safareig', title: 'La roba està llesta',
       body: `La rentadora ha acabat a les ${hhmm(wash.finishedAt)}. Millor estendre-la aviat perquè no es quedi arrugada.`,
       facts: [['Durada', dur(wash.finishedAt - wash.startedAt)], ...(n != null ? [['Aquest any', n + ' rentades']] : [])] });
+  }
+
+  // 5b. Rentadora en marxa, amb l'hora que acaba
+  const wEnd = Date.parse(st(ENT.washerEnd));
+  if (st(ENT.washerState) === 'run' && Number.isFinite(wEnd) && wEnd > now()) {
+    const phase = WASH_PHASE[st(ENT.washerJob)];
+    out.push({ tone: 'info', kicker: 'Safareig', title: `La rentadora acaba a les ${hhmm(wEnd)}`,
+      mini: `Rentadora: acaba a les ${hhmm(wEnd)}`,
+      body: `Queden ${dur(wEnd - now())}.${phase ? ' Ara està ' + phase + '.' : ''}`,
+      facts: [['Acaba', hhmm(wEnd)], ...(phase ? [['Fase', phase.charAt(0).toUpperCase() + phase.slice(1)]] : [])] });
   }
 
   // 6. Pluja
@@ -526,6 +540,8 @@ const ICON = {
   flame: '<path d="M12 22c4 0 7-2.7 7-6.6 0-3.1-2-5.6-3.6-7.2-.4 1.6-1.3 2.8-2.4 3.3.3-3.3-1.2-6.6-4-8.5.2 3-1.6 5.4-3.1 7.3C4.6 11.9 5 13.6 5 15.4 5 19.3 8 22 12 22z"/>',
   bell: '<path d="M6 16V11a6 6 0 0 1 12 0v5l2 2H4z"/><path d="M10 21h4"/>',
   door: '<path d="M6 21V4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v17"/><path d="M3 21h18"/><path d="M14.5 12h.01" stroke-width="2.4"/>',
+  minus: '<path d="M5 12h14"/>',
+  plus: '<path d="M12 5v14M5 12h14"/>',
   moon: '<path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z"/>',
   sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>',
   user: '<circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/>',
@@ -730,10 +746,30 @@ function viewCasa() {
 }
 
 // ---------- Calefacció ----------
+// + i − canvien la consigna a la pantalla i l'envien a HA quan deixes de tocar (1,5 s).
+let setpointTimer;
+function targetTemp() {
+  const real = attr(ENT.climate, 'temperature');
+  if (S.setpoint && (now() - S.setpoint.t < 20000 && S.setpoint.value !== real)) return S.setpoint.value;
+  S.setpoint = null;
+  return real;
+}
+function bumpTarget(delta) {
+  const c = ENT.climate;
+  const base = targetTemp() ?? attr(c, 'current_temperature') ?? 20;
+  const v = Math.min(attr(c, 'max_temp') ?? 30, Math.max(attr(c, 'min_temp') ?? 5, Math.round((base + delta) * 2) / 2));
+  S.setpoint = { value: v, t: now() };
+  render();
+  clearTimeout(setpointTimer);
+  setpointTimer = setTimeout(() => {
+    S.setpoint.t = now();
+    callService('climate', 'set_temperature', c, { temperature: v }, 'No s\'ha pogut canviar la temperatura').catch(() => { S.setpoint = null; render(); });
+  }, 1500);
+}
 function viewCalefaccio() {
   const c = ENT.climate;
   const cur = attr(c, 'current_temperature') ?? num(ENT.intTemp);
-  const target = attr(c, 'temperature');
+  const target = targetTemp();
   const heat = heatingPct();
   const mode = st(c), action = attr(c, 'hvac_action');
   const state = mode === 'off' ? 'Apagada' : action === 'heating' || heat > 0 ? 'Escalfant' : action === 'idle' ? 'En repòs' : mode === 'auto' ? 'Programada' : '–';
@@ -750,15 +786,19 @@ function viewCalefaccio() {
         <span style="font-size:17px;font-weight:500;color:${ZONES.includes(name) ? zoneColor(name) : 'var(--muted)'}">${esc(name)}</span>
         <span class="num" style="font-size:22px;font-weight:500">${deg(num(t), 1)}${h ? ` <small style="font-size:15px;font-weight:400;color:var(--muted)">${num(h) == null ? '–' : Math.round(num(h)) + '%'}</small>` : ''}</span></div>`).join('')}</div>`;
   };
+  const manual = mode !== 'auto' && mode !== 'off';
   return `<div class="panel">${head('Calefacció')}
-  <div style="display:flex;align-items:center;gap:56px">
+  <div style="display:inline-flex;flex-direction:column;align-items:center;gap:20px;align-self:flex-start">
     <div class="num" style="display:flex;align-items:baseline;gap:18px;font-size:72px;font-weight:400;letter-spacing:-.03em;line-height:1">
-      ${deg(cur, 1)}<span style="font-size:36px;color:var(--muted)">→</span><span style="color:${heat > 0 ? 'var(--warn)' : 'var(--ink)'}">${target == null ? '–' : deg(target, 1)}</span></div>
-    <div style="flex:1 1 auto;display:flex;flex-direction:column;gap:10px">
-      <div style="display:flex;align-items:center;gap:8px;font-size:22px;font-weight:500;color:${heat > 0 ? 'var(--warn)' : 'var(--muted)'}">${svg(ICON.flame, 24, 1.8)}<span class="num">${Math.round(heat)}%</span></div>
-    </div>
+      ${deg(cur, 1)}<span style="font-size:36px;color:var(--muted)">→</span><span style="color:${S.setpoint ? 'var(--accent)' : heat > 0 ? 'var(--warn)' : 'var(--ink)'}">${target == null ? '–' : deg(target, 1)}</span></div>
+    <div style="display:flex;gap:12px">
+      <button data-a="temp" data-d="-0.5" aria-label="Baixar la temperatura objectiu" class="outline" style="width:60px;height:60px;border-radius:30px;display:flex;align-items:center;justify-content:center">${svg(ICON.minus, 26, 2)}</button>
+      <button data-a="temp" data-d="0.5" aria-label="Pujar la temperatura objectiu" class="outline" style="width:60px;height:60px;border-radius:30px;display:flex;align-items:center;justify-content:center">${svg(ICON.plus, 26, 2)}</button></div>
   </div>
-  <div style="display:flex;gap:48px">${fact('Estat', state)}${preset ? fact('Mode', preset) : ''}</div>
+  <div style="display:flex;gap:48px;align-items:flex-end">${fact('Estat', state)}
+    ${fact('Caldera', `<span class="num" style="display:inline-flex;align-items:center;gap:6px;color:${heat > 0 ? 'var(--warn)' : 'var(--ink)'}">${svg(ICON.flame, 20, 1.8)}${Math.round(heat)}%</span>`)}
+    ${preset ? fact('Mode', preset) : ''}${fact('Temperatura', mode === 'off' ? '–' : manual ? 'Manual' : 'Segons l’horari')}
+    ${manual && (attr(c, 'hvac_modes') || []).includes('auto') ? `<button data-a="schedule" class="outline pillbtn" style="margin-left:auto">Tornar a l’horari</button>` : ''}</div>
   ${ROOMS.length ? `<div style="display:flex;gap:40px;margin-top:36px">${floors.map(col).join('')}</div>` : ''}</div>`;
 }
 
@@ -1128,6 +1168,8 @@ $('view').addEventListener('click', e => {
   else if (a === 'keydel') { S.code = S.code.slice(0, -1); render(); }
   else if (a === 'disarm') { if (alarmNeedsCode() || now() - S.confirmDisarm < 5000) disarm(); else { S.confirmDisarm = now(); render(); setTimeout(schedule, 5100); } }
   else if (a === 'night') { S.nightOverride = { value: b.dataset.n === '1', auto: nightAuto() }; render(); }
+  else if (a === 'temp') bumpTarget(+b.dataset.d);
+  else if (a === 'schedule') callService('climate', 'set_hvac_mode', ENT.climate, { hvac_mode: 'auto' }, 'No s\'ha pogut tornar a l\'horari').catch(() => {});
   else if (a === 'covers') COVERS.filter(c => !b.dataset.f || c[3] === b.dataset.f).forEach(([id]) => setCover(id, +b.dataset.p));
 });
 

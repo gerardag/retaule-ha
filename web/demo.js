@@ -10,6 +10,7 @@ window.PANTALLA_DEMO_CONFIG = {
     intTemp: 'sensor.menjador_temperatura', climate: 'climate.menjador', heating: 'sensor.menjador_calefaccio',
     discount: 'binary_sensor.llum_barata', power: 'sensor.consum', energy: 'sensor.energia', servers: 'sensor.servidors_consum',
     dishwasher: 'input_boolean.rentaplats', washer: 'input_boolean.rentadora', dishCount: 'counter.rentaplats_any', washCount: 'counter.rentadores_any',
+    washerState: 'sensor.rentadora_estat', washerJob: 'sensor.rentadora_fase', washerEnd: 'sensor.rentadora_final',
     openings: 'binary_sensor.portes_i_finestres', alarm: 'alarm_control_panel.casa',
     lightningDist: 'sensor.llamps_distancia', lightningCount: 'sensor.llamps_comptador',
   },
@@ -56,7 +57,7 @@ window.PANTALLA_DEMO = function (name, app) {
   const SC = {
     descompte: '12:40', plats: '15:05', roba: '16:58', finestres: '19:20', sensor: '20:10',
     pluja: '10:15', tempesta: '17:40', nit: '23:30', agenda: '16:50',
-    alarma: '23:40', alarmaboto: '08:10', entrada: '18:05', sona: '03:12',
+    rentant: '15:20', alarma: '23:40', alarmaboto: '08:10', entrada: '18:05', sona: '03:12',
   };
   const [hh, mm] = (SC[name] || SC.descompte).split(':').map(Number);
   const target = new Date(); target.setHours(hh, mm, 0, 0);
@@ -79,7 +80,7 @@ window.PANTALLA_DEMO = function (name, app) {
   set('sensor.radiacio_solar', night ? 0 : 420);
   set('sensor.menjador_temperatura', name === 'finestres' ? 20.1 : 21.4);
   const heating = name === 'finestres' ? 62 : name === 'sensor' ? 35 : 0;
-  set('climate.menjador', 'auto', { temperature: 21, current_temperature: name === 'finestres' ? 20.1 : 21.4, hvac_action: heating ? 'heating' : 'idle', preset_mode: 'home' });
+  set('climate.menjador', 'auto', { temperature: 21, current_temperature: name === 'finestres' ? 20.1 : 21.4, hvac_action: heating ? 'heating' : 'idle', preset_mode: 'home', hvac_modes: ['off', 'auto', 'heat'], min_temp: 5, max_temp: 25 });
   const rooms = { menjador: [21.4, 55], cuina: [21.8, 61], habitacio: [20.6, 64], estudi: [20.9, 63], bany: [20.2, 70] };
   for (const [k, [t, h]] of Object.entries(rooms)) { if (k !== 'menjador') set(`sensor.${k}_temperatura`, t); set(`sensor.${k}_humitat`, h); }
   set('person.anna', 'home', {}, 190);
@@ -92,6 +93,9 @@ window.PANTALLA_DEMO = function (name, app) {
   set('input_boolean.rentadora', 'off', {}, name === 'roba' ? 16 : 600);
   set('counter.rentaplats_any', 214);
   set('counter.rentadores_any', 168);
+  set('sensor.rentadora_estat', name === 'rentant' ? 'run' : 'stop');
+  set('sensor.rentadora_fase', name === 'rentant' ? 'rinse' : 'none');
+  set('sensor.rentadora_final', new Date(target.getTime() + 48 * 60000).toISOString());
   const ops = ['binary_sensor.finestra_cuina', 'binary_sensor.porta_entrada', 'binary_sensor.finestra_habitacio'];
   set('binary_sensor.finestra_cuina', name === 'finestres' ? 'on' : name === 'sensor' ? 'unavailable' : 'off', { friendly_name: 'Finestra cuina' }, name === 'finestres' ? 14 : 180);
   set('binary_sensor.porta_entrada', 'off', { friendly_name: 'Porta entrada' });
@@ -160,7 +164,12 @@ window.PANTALLA_DEMO = function (name, app) {
           return Promise.resolve({});
         }
         for (const id of ids) {
-          if (msg.domain === 'cover') {
+          if (msg.domain === 'climate') {
+            const a = E[id].a;
+            if (msg.service === 'set_temperature') { a.temperature = msg.service_data.temperature; E[id].s = 'heat'; }
+            if (msg.service === 'set_hvac_mode') E[id].s = msg.service_data.hvac_mode;
+            c[id] = { '+': { s: E[id].s, a: { ...a }, lc: Date.now() / 1000 } };
+          } else if (msg.domain === 'cover') {
             const p = msg.service === 'open_cover' ? 100 : msg.service === 'close_cover' ? 0 : msg.service_data.position;
             c[id] = { '+': { s: p ? 'open' : 'closed', a: { current_position: p }, lc: Date.now() / 1000 } };
           } else if (msg.domain === 'media_player') {

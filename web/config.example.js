@@ -39,6 +39,8 @@ window.PANTALLA_CONFIG = {
     washCount: null,
 
     // Casa
+    // Rentadora en marxa (SmartThings): estat run/stop, fase i hora que acaba.
+    washerState: 'sensor.rentadora_machine_state', washerJob: 'sensor.rentadora_job_state', washerEnd: 'sensor.rentadora_completion_time',
     openings: 'binary_sensor.portes_i_finestres', // grup amb tots els sensors de portes i finestres
     alarm: 'alarm_control_panel.casa',
   },
