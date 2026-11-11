@@ -50,6 +50,40 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 #cam{position:absolute;left:56px;top:117px;width:680px;height:510px;border-radius:20px;background:#000;object-fit:contain;display:none}
 #toast{position:absolute;left:50%;bottom:28px;transform:translateX(-50%);padding:14px 22px;border-radius:24px;font-size:16px;font-weight:500;background:var(--ink);color:var(--bg);opacity:0;transition:opacity .2s;pointer-events:none;white-space:nowrap}
 #toast.show{opacity:1}
+/* Mòbil vertical: la pàgina no s'escala; passa a una columna i fa scroll. */
+html.mobil,html.mobil body{height:auto;overflow:auto}
+html.mobil #stage{position:relative;width:auto;height:auto;min-height:100svh;transform:none;overflow:visible;padding-top:var(--inset-top)}
+html.mobil .panel{height:auto;min-height:100svh;padding:24px 20px 32px;gap:22px}
+html.mobil .panel h2{font-size:32px}
+html.mobil .phead{gap:12px}
+html.mobil .home,html.mobil .timbre,html.mobil .alarm,html.mobil .screen{height:auto!important;min-height:100svh;padding:28px 20px 32px!important}
+html.mobil .home{flex-direction:column;gap:0!important}
+html.mobil .home-div{display:none}
+html.mobil .home-side{display:contents!important}
+html.mobil .home-side>*{order:2}
+html.mobil .home-side>:first-child{order:-1;padding-bottom:24px!important;margin-bottom:32px;border-bottom:1px solid var(--line)}
+html.mobil .home-side>:first-child .num{font-size:52px!important}
+html.mobil .home-main{margin-bottom:36px}
+html.mobil .home-side>div:last-child{order:1;margin-top:0!important;margin-bottom:36px}
+html.mobil .home h1{font-size:40px!important}
+html.mobil .home p{font-size:19px!important}
+html.mobil .facts,html.mobil .wrap{flex-wrap:wrap;gap:20px 32px!important}
+html.mobil .strip>div:nth-child(n+3){display:none}
+html.mobil .g4{grid-template-columns:repeat(2,minmax(0,1fr))!important}
+html.mobil .g1{grid-template-columns:minmax(0,1fr)!important}
+html.mobil .cols{flex-direction:column;gap:0!important}
+html.mobil .side{width:auto!important;margin-top:24px}
+html.mobil .bars{gap:2px!important}
+html.mobil .agenda-cols{column-count:1!important;overflow:visible!important}
+html.mobil .timbre h1{font-size:34px!important}
+html.mobil .cam-box{position:static!important;width:100%!important;height:auto!important;aspect-ratio:4/3;margin-bottom:24px}
+html.mobil #cam{left:20px;top:calc(28px + var(--inset-top));width:calc(100% - 40px);height:auto;aspect-ratio:4/3}
+html.mobil .alarm{flex-direction:column;justify-content:flex-start!important;gap:32px!important;padding-top:84px!important}
+html.mobil .alarm h1{font-size:40px!important}
+html.mobil .alarm>.num:first-child{left:20px!important;top:28px!important}
+html.mobil .keypad{width:100%!important;max-width:360px}
+html.mobil .nit-clock{font-size:110px!important}
+html.mobil #toast{position:fixed}
 </style>
 </head>
 <body>
@@ -433,7 +467,6 @@ const openingList = () => OPENINGS.length ? OPENINGS : openingSensors().map(id =
 const shortName = id => lower1(fname(id).replace(/\s*(sensor|contacte|contact|obertura)\s*/gi, ' ').trim());
 function heatingPct() { const v = num(ENT.heating); return v == null ? 0 : v; }
 function discountLeft() { const end = new Date(now()); end.setHours(DISC.to, 0, 0, 0); return end - now(); }
-function machineFact(id) { return isOn(id) ? 'En marxa' : st(id) === 'off' ? 'Aturat' : '–'; }
 
 // Fases de la rentadora (SmartThings), per a "Ara està …".
 const WASH_PHASE = { wash: 'rentant', ai_wash: 'rentant', pre_wash: 'fent el prerentat', rinse: 'esbandint', ai_rinse: 'esbandint',
@@ -515,7 +548,8 @@ function stories() {
     out.push({ tone: 'good', kicker: 'Energia', title: `Llum amb descompte fins a les ${pad(DISC.to)}:00`,
       mini: `Llum a −${DISC.percent}% fins a les ${pad(DISC.to)}:00 · queden ${dur(discountLeft())}`,
       body: `Bon moment per posar la rentadora o el rentaplats. Queden ${dur(discountLeft())} de franja barata.`,
-      facts: [...(ENT.dishwasher ? [['Rentaplats', machineFact(ENT.dishwasher)]] : []), ...(ENT.washer ? [['Rentadora', machineFact(ENT.washer)]] : [])] });
+      // Només les màquines en marxa: que estiguin aturades no aporta res.
+      facts: [[ENT.dishwasher, 'Rentaplats'], [ENT.washer, 'Rentadora']].filter(([id]) => id && isOn(id)).map(([, name]) => [name, 'En marxa']) });
   }
 
   // 8. Tot en ordre
@@ -635,7 +669,7 @@ function agendaStrip() {
   return `<button data-a="go" data-v="agenda" style="display:block;width:100%;margin-bottom:28px">
     <div style="display:flex;gap:10px;align-items:baseline;margin-bottom:12px;min-width:0"><span class="lbl" style="flex:none">${allDay.length ? 'Avui' : 'Agenda'}</span>
       ${allDay.length ? `<span style="font-size:16px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Tot el dia: ${allDay.map(e => esc(e.summary)).join(' · ')}</span>` : ''}</div>
-    ${timed.length ? `<div style="display:flex">${timed.map((e, i) => node(e, i === 0)).join('')}</div>` : ''}</button>`;
+    ${timed.length ? `<div class="strip" style="display:flex">${timed.map((e, i) => node(e, i === 0)).join('')}</div>` : ''}</button>`;
 }
 
 // ---------- Timbre ----------
@@ -672,8 +706,8 @@ function syncCam(show) {
 function viewTimbre(manual) {
   const opts = DOORBELL.replies ? (attr(DOORBELL.replies, 'options') || []) : [];
   const at = params.has('timbre') ? now() : S.ringAt;
-  return `<div style="height:744px;box-sizing:border-box;padding:56px 56px 56px 776px;display:flex;flex-direction:column;position:relative">
-    <div style="position:absolute;left:56px;top:117px;width:680px;height:510px;border-radius:20px;background:#000;display:flex;align-items:center;justify-content:center;color:#8F9BB3;font-size:18px">${demo ? 'Aquí es veu el vídeo en directe del timbre' : 'Connectant amb el timbre…'}</div>
+  return `<div class="timbre" style="height:744px;box-sizing:border-box;padding:56px 56px 56px 776px;display:flex;flex-direction:column;position:relative">
+    <div class="cam-box" style="position:absolute;left:56px;top:117px;width:680px;height:510px;border-radius:20px;background:#000;display:flex;align-items:center;justify-content:center;color:#8F9BB3;font-size:18px">${demo ? 'Aquí es veu el vídeo en directe del timbre' : 'Connectant amb el timbre…'}</div>
     <div class="kicker" style="color:var(--accent)"><i></i><span>Timbre</span></div>
     <h1 style="margin:20px 0 0;font-size:48px;line-height:1.05;font-weight:500;letter-spacing:-.02em">${manual ? 'Porta d’entrada' : 'Truquen a la porta'}</h1>
     <p style="margin:12px 0 0;font-size:20px;color:var(--muted)">${manual ? 'En directe' : 'A les ' + hhmm(at)}</p>
@@ -704,7 +738,7 @@ function disarm() {
 function keypad() {
   const key = (label, a, extra = '') => `<button data-a="${a}" data-k="${label}" class="outline num" style="height:84px;border-radius:42px;font-size:32px;font-weight:500;display:flex;align-items:center;justify-content:center;${extra}">${label}</button>`;
   const dots = Array.from({ length: Math.max(4, S.code.length) }, (_, i) => `<span style="width:16px;height:16px;border-radius:50%;${i < S.code.length ? 'background:var(--ink)' : 'box-shadow:inset 0 0 0 1.5px var(--edge)'}"></span>`).join('');
-  return `<div style="display:flex;flex-direction:column;gap:20px;width:360px">
+  return `<div class="keypad" style="display:flex;flex-direction:column;gap:20px;width:360px">
     <div style="display:flex;gap:12px;height:20px;align-items:center;justify-content:center" aria-label="${S.code.length} xifres">${dots}</div>
     <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px">
       ${[1, 2, 3, 4, 5, 6, 7, 8, 9].map(n => key(n, 'key')).join('')}
@@ -728,7 +762,7 @@ function viewAlarm() {
   const clock = `<div class="num" style="position:absolute;top:40px;left:60px;font-size:28px;color:var(--muted)">${hhmm(now())}</div>`;
 
   if (alarmNeedsCode()) {
-    return `<div style="height:744px;box-sizing:border-box;padding:56px 80px;display:flex;gap:80px;align-items:center;position:relative">${clock}
+    return `<div class="alarm" style="height:744px;box-sizing:border-box;padding:56px 80px;display:flex;gap:80px;align-items:center;position:relative">${clock}
       <div style="flex:1 1 auto;min-width:0;display:flex;flex-direction:column;gap:24px">
         ${shield(120)}
         <h1 style="margin:0;font-size:60px;line-height:1.05;font-weight:500;letter-spacing:-.025em;color:${urgent ? color : 'var(--ink)'}">${title}</h1>
@@ -736,7 +770,7 @@ function viewAlarm() {
       </div>${keypad()}</div>`;
   }
   const sure = now() - S.confirmDisarm < 5000;
-  return `<div style="height:744px;box-sizing:border-box;padding:56px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:28px;text-align:center;position:relative">${clock}
+  return `<div class="alarm" style="height:744px;box-sizing:border-box;padding:56px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:28px;text-align:center;position:relative">${clock}
     ${shield(240)}
     <h1 style="margin:12px 0 0;font-size:70px;line-height:1.02;font-weight:500;letter-spacing:-.025em;color:${urgent ? color : 'var(--ink)'}">${title}</h1>
     <p style="margin:0;font-size:26px;color:var(--muted)">${sub}</p>
@@ -769,8 +803,8 @@ function viewNit() {
     ev ? line(`${svg(ICON.cal, 20, 1.6)}${dayName(ev.start) === 'avui' ? '' : esc(dayName(ev.start)) + ' '}${hhmm(ev.start)} · ${esc(ev.summary)}`) : '',
   ].filter(Boolean).join('');
   const temps = [ENT.extTemp ? `Fora ${deg(num(ENT.extTemp), 0)}` : '', ENT.intTemp ? `${esc(ROOM)} ${deg(num(ENT.intTemp), 1)}` : ''].filter(Boolean).join('<span style="opacity:.4"> · </span>');
-  return `<div style="height:744px;box-sizing:border-box;padding:60px;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:18px;position:relative">
-    <div class="num" style="font-size:180px;line-height:1;font-weight:300;letter-spacing:-.04em">${hhmm(now())}</div>
+  return `<div class="screen" style="height:744px;box-sizing:border-box;padding:60px;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:18px;position:relative">
+    <div class="num nit-clock" style="font-size:180px;line-height:1;font-weight:300;letter-spacing:-.04em">${hhmm(now())}</div>
     <div style="font-size:24px;color:var(--muted)">${esc(date)}</div>
     ${temps ? `<div class="num" style="font-size:26px;margin-top:8px">${temps}</div>` : ''}
     ${lines ? `<div style="display:flex;flex-direction:column;gap:14px;margin-top:28px">${lines}</div>` : ''}
@@ -804,7 +838,7 @@ function viewCasa() {
   }).join('');
   const count = home === 0 ? 'ningú' : home === PEOPLE.length ? 'tothom' : home + ' de ' + PEOPLE.length;
   return `<div class="panel">${head(`A casa <span class="num" style="color:var(--muted);font-weight:400">· ${count}</span>`)}
-  <div style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px">${tiles}</div></div>`;
+  <div class="g4" style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px">${tiles}</div></div>`;
 }
 
 // ---------- Calefacció ----------
@@ -857,11 +891,11 @@ function viewCalefaccio() {
       <button data-a="temp" data-d="-0.5" aria-label="Baixar la temperatura objectiu" class="outline" style="width:60px;height:60px;border-radius:30px;display:flex;align-items:center;justify-content:center">${svg(ICON.minus, 26, 2)}</button>
       <button data-a="temp" data-d="0.5" aria-label="Pujar la temperatura objectiu" class="outline" style="width:60px;height:60px;border-radius:30px;display:flex;align-items:center;justify-content:center">${svg(ICON.plus, 26, 2)}</button></div>
   </div>
-  <div style="display:flex;gap:48px;align-items:flex-end">${fact('Estat', state)}
+  <div class="facts" style="display:flex;gap:48px;align-items:flex-end">${fact('Estat', state)}
     ${fact('Caldera', `<span class="num" style="display:inline-flex;align-items:center;gap:6px;color:${heat > 0 ? 'var(--warn)' : 'var(--ink)'}">${svg(ICON.flame, 20, 1.8)}${Math.round(heat)}%</span>`)}
     ${preset ? fact('Mode', preset) : ''}${fact('Temperatura', mode === 'off' ? '–' : manual ? 'Manual' : 'Segons l’horari')}
     ${manual && (attr(c, 'hvac_modes') || []).includes('auto') ? `<button data-a="schedule" class="outline pillbtn" style="margin-left:auto">Tornar a l’horari</button>` : ''}</div>
-  ${ROOMS.length ? `<div style="display:flex;gap:40px;margin-top:36px">${floors.map(col).join('')}</div>` : ''}</div>`;
+  ${ROOMS.length ? `<div class="cols" style="display:flex;gap:40px;margin-top:36px">${floors.map(col).join('')}</div>` : ''}</div>`;
 }
 
 function viewHome() {
@@ -898,19 +932,19 @@ function viewHome() {
   else if (ev) agenda = `${hhmm(ev.start)} <small>${dayName(ev.start) === 'avui' ? '' : dayName(ev.start) + ' · '}${esc(ev.summary)}</small>`;
   else if (S.events) agenda = `Res <small>els propers ${AGENDA_DAYS} dies</small>`;
 
-  return `<div style="height:744px;box-sizing:border-box;padding:48px 52px 44px 60px;display:flex;gap:48px">
-  <div style="flex:1 1 auto;min-width:0;display:flex;flex-direction:column">
+  return `<div class="home" style="height:744px;box-sizing:border-box;padding:48px 52px 44px 60px;display:flex;gap:48px">
+  <div class="home-main" style="flex:1 1 auto;min-width:0;display:flex;flex-direction:column">
     <div class="kicker" style="color:${kc}"><i></i><span>${esc(sc.kicker)}</span></div>
     <h1 style="margin:28px 0 0;font-size:70px;line-height:1.02;font-weight:500;letter-spacing:-.025em;max-width:620px">${sc.title}</h1>
     <p style="margin:28px 0 0;font-size:24px;line-height:1.4;color:var(--muted);max-width:560px">${sc.body}</p>
     ${others ? `<div style="margin-top:28px">${others}</div>` : ''}
     <div style="margin-top:auto">${agendaStrip()}</div>
-    <div style="display:flex;gap:48px;padding-top:24px;border-top:1px solid var(--line)">
+    <div class="facts" style="display:flex;gap:48px;padding-top:24px;border-top:1px solid var(--line)">
       ${sc.facts.map(([k, v]) => `<div style="display:flex;flex-direction:column;gap:6px"><span class="lbl">${esc(k)}</span><span class="num" style="font-size:22px;font-weight:500">${esc(v)}</span></div>`).join('')}
     </div>
   </div>
-  <div style="width:1px;background:var(--line);flex:none"></div>
-  <div style="width:330px;flex:none;display:flex;flex-direction:column">
+  <div class="home-div" style="width:1px;background:var(--line);flex:none"></div>
+  <div class="home-side" style="width:330px;flex:none;display:flex;flex-direction:column">
     <div style="padding-bottom:16px">
       <${PEOPLE.length ? 'button data-a="go" data-v="casa" aria-label="Qui és a casa"' : 'div'} class="num" style="display:block;font-size:72px;line-height:1;font-weight:400;letter-spacing:-.03em">${hhmm(now())}</${PEOPLE.length ? 'button' : 'div'}>
       <div style="margin-top:8px;font-size:18px;color:var(--muted)">${esc(date)}</div>
@@ -949,9 +983,9 @@ function viewLlums() {
   }).join('');
   const scenes = SCENES.map(([name, domain], i) => domain ? `<button data-a="scene" data-i="${i}" class="outline pillbtn">${name}</button>` : '').join('');
   return `<div class="panel">${head(`Llums <span class="num" style="color:var(--muted);font-weight:400">· ${n} enceses</span>`)}
-  <div style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px">${tiles}</div>
+  <div class="g4" style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px">${tiles}</div>
   <div style="margin-top:auto;display:flex;flex-direction:column;gap:14px;padding-top:24px;border-top:1px solid var(--line)">
-    <span class="lbl">Escenes</span><div style="display:flex;gap:12px">${scenes}</div></div></div>`;
+    <span class="lbl">Escenes</span><div class="wrap" style="display:flex;gap:12px">${scenes}</div></div></div>`;
 }
 
 const mediaState = id => { const p = pendingFor(id); return p && 'state' in p ? p.state : st(id); };
@@ -1009,7 +1043,7 @@ function viewMedia() {
     </div>`;
   }).join('');
   return `<div class="panel">${head('Música i tele')}
-  ${active.length ? `<div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;align-items:start">${cards}</div>`
+  ${active.length ? `<div class="g1" style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;align-items:start">${cards}</div>`
     : `<p style="margin:0;font-size:24px;color:var(--muted)">Ara no sona res. Aquí apareixen la tele i els altaveus quan estan engegats.</p>`}
   </div>`;
 }
@@ -1032,8 +1066,8 @@ function viewPersianes() {
     : `<div style="display:flex;gap:12px"><button data-a="covers" data-p="100" class="outline pillbtn">Totes amunt</button>
     <button data-a="covers" data-p="0" class="outline pillbtn">Totes avall</button></div>`;
   return `<div class="panel">${head('Persianes')}
-  <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px">${cards}</div>
-  <div style="margin-top:auto;display:flex;gap:40px;padding-top:24px;border-top:1px solid var(--line)">${all}${FLOORS.map(f => group(f, f)).join('')}</div></div>`;
+  <div class="g1" style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px">${cards}</div>
+  <div class="wrap" style="margin-top:auto;display:flex;gap:40px;padding-top:24px;border-top:1px solid var(--line)">${all}${FLOORS.map(f => group(f, f)).join('')}</div></div>`;
 }
 
 function viewPortes() {
@@ -1048,7 +1082,7 @@ function viewPortes() {
   }).join('');
   const count = open === 0 ? 'tot tancat' : open === 1 ? '1 oberta' : open + ' obertes';
   return `<div class="panel">${head(`Portes i finestres <span class="num" style="color:var(--muted);font-weight:400">· ${count}</span>`)}
-  <div style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px">${tiles}</div>
+  <div class="g4" style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px">${tiles}</div>
   ${DOORBELL ? `<div style="margin-top:auto;padding-top:24px;border-top:1px solid var(--line)"><button data-a="go" data-v="timbre" class="outline pillbtn" style="display:flex;align-items:center;gap:10px">${svg(ICON.doorbell, 22, 1.7)}Veure la porta</button></div>` : ''}</div>`;
 }
 
@@ -1074,7 +1108,7 @@ function viewExterior() {
     `<div style="display:flex;justify-content:space-between;align-items:baseline;padding:16px 0;border-top:1px solid var(--line)">
     <span style="font-size:17px;color:var(--muted)">${k}</span><span class="num" style="font-size:24px;font-weight:500">${esc(val)}</span></div>`).join('')}</div>`;
   return `<div class="panel">${head('Exterior')}
-  <div style="display:flex;gap:48px">${col(rows.slice(0, half))}${col(rows.slice(half))}</div>
+  <div class="cols" style="display:flex;gap:48px">${col(rows.slice(0, half))}${col(rows.slice(half))}</div>
   <span style="margin-top:auto;font-size:14px;color:var(--muted)">Dades de Home Assistant</span></div>`;
 }
 
@@ -1101,9 +1135,9 @@ function viewAgenda() {
   }
   const legend = CALENDARS.map(([, name], i) => `<span style="display:flex;align-items:center;gap:8px">${dot(i)}${esc(name)}</span>`).join('');
   return `<div class="panel">${head('Agenda')}
-  ${S.events ? `<div style="column-count:2;column-gap:48px;flex:1 1 auto;min-height:0;overflow:hidden">${days.join('')}</div>`
+  ${S.events ? `<div class="agenda-cols" style="column-count:2;column-gap:48px;flex:1 1 auto;min-height:0;overflow:hidden">${days.join('')}</div>`
     : `<p style="margin:0;font-size:24px;color:var(--muted)">${S.agendaError ? 'Els calendaris no estan disponibles a Home Assistant.' : 'Carregant els calendaris…'}</p>`}
-  <div style="margin-top:auto;display:flex;gap:24px;font-size:14px;color:var(--muted)">${legend}</div></div>`;
+  <div class="wrap" style="margin-top:auto;display:flex;gap:24px;font-size:14px;color:var(--muted)">${legend}</div></div>`;
 }
 
 // Escala vertical amb un pas rodó i com a molt 4 línies.
@@ -1148,20 +1182,20 @@ function viewEnergia() {
   ].map(([k, v, small]) => `<div style="display:flex;justify-content:space-between;align-items:baseline;padding:13px 0;border-top:1px solid var(--line)">
     <span style="font-size:16px;color:var(--muted)">${k}</span><span class="num" style="font-size:22px;font-weight:500;text-align:right">${esc(v)}${small ? `<small style="display:block;font-size:14px;font-weight:400;color:var(--muted)">${small}</small>` : ''}</span></div>`).join('');
   return `<div class="panel">${head('Energia avui')}
-  <div style="display:flex;gap:48px;flex:1 1 auto;min-height:0">
+  <div class="cols" style="display:flex;gap:48px;flex:1 1 auto;min-height:0">
     <div style="flex:1 1 auto;display:flex;flex-direction:column;gap:14px">
-      ${!DISC ? '' : `<div style="display:flex;gap:20px;font-size:15px;color:var(--muted)">
+      ${!DISC ? '' : `<div class="wrap" style="display:flex;gap:20px;font-size:15px;color:var(--muted)">
         <span style="display:flex;align-items:center;gap:8px"><span style="width:12px;height:12px;border-radius:3px;background:var(--accent)"></span>Franja amb descompte (${DISC.from}–${DISC.to} h)</span>
         <span style="display:flex;align-items:center;gap:8px"><span style="width:12px;height:12px;border-radius:3px;background:var(--chart)"></span>Preu normal</span></div>`}
       <div style="position:relative;margin-right:52px;margin-top:20px">
         ${grid.join('')}
         <span style="position:absolute;right:-52px;top:-26px;font-size:13px;color:var(--muted)">kWh</span>
-        <div style="display:flex;align-items:flex-end;gap:6px;height:${H}px;border-bottom:1px solid var(--line)">${cols}</div>
+        <div class="bars" style="display:flex;align-items:flex-end;gap:6px;height:${H}px;border-bottom:1px solid var(--line)">${cols}</div>
       </div>
-      <div style="display:flex;gap:6px;margin-right:52px">${labels}</div>
+      <div class="bars" style="display:flex;gap:6px;margin-right:52px">${labels}</div>
       <span style="font-size:15px;color:var(--muted)">${caption}</span>
     </div>
-    <div style="width:300px;flex:none;display:flex;flex-direction:column">${rows}</div></div></div>`;
+    <div class="side" style="width:300px;flex:none;display:flex;flex-direction:column">${rows}</div></div></div>`;
 }
 
 // ---------- Render ----------
@@ -1247,10 +1281,15 @@ $('view').addEventListener('click', e => {
 // ---------- Escala, pantalla encesa i versió ----------
 // A l'iPad com a app, la barra d'estat queda a sobre de la pàgina: es deixa lliure el seu espai (safe-area-inset-top).
 function fit() {
+  // Mòbil vertical: una columna amb scroll en lloc d'encongir la pàgina de l'iPad.
+  const mobile = innerWidth < 700 && innerWidth < innerHeight;
+  document.documentElement.classList.toggle('mobil', mobile);
+  const style = $('stage').style;
+  style.marginBottom = mobile ? ($('demobar')?.offsetHeight || 0) + 'px' : '';
+  if (mobile) { style.transform = style.left = style.top = ''; return; }
   const inset = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--inset-top')) || 0;
   const h = innerHeight - inset - ($('demobar')?.offsetHeight || 0);
   const s = Math.min(innerWidth / 1133, h / 744);
-  const style = $('stage').style;
   style.transform = `scale(${s})`;
   style.left = Math.max(0, (innerWidth - 1133 * s) / 2) + 'px';
   style.top = inset + Math.max(0, (h - 744 * s) / 2) + 'px';
