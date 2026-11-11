@@ -64,7 +64,9 @@ html.mobil .home-side>*{order:2}
 html.mobil .home-side>:first-child{order:-1;padding-bottom:24px!important;margin-bottom:32px;border-bottom:1px solid var(--line)}
 html.mobil .home-side>:first-child .num{font-size:52px!important}
 html.mobil .home-main{margin-bottom:36px}
-html.mobil .home-side>div:last-child{order:1;margin-top:0!important;margin-bottom:36px}
+/* Barra de controls fixa a baix; la pàgina deixa espai al final perquè no tapi res. */
+html.mobil .home-side>div:last-child{position:fixed;left:0;right:0;bottom:var(--demobar,0px);z-index:5;margin:0!important;justify-content:center;padding:12px 20px calc(12px + env(safe-area-inset-bottom));background:var(--bg);border-top:1px solid var(--line)}
+html.mobil .home{padding-bottom:calc(120px + env(safe-area-inset-bottom))!important}
 html.mobil .home h1{font-size:40px!important}
 html.mobil .home p{font-size:19px!important}
 html.mobil .facts,html.mobil .wrap{flex-wrap:wrap;gap:20px 32px!important}
@@ -97,12 +99,39 @@ html.mobil #toast{position:fixed}
 // Tot el que és propi de cada casa ve de config.js (vegeu config.example.js).
 // Si falta una entitat, la pantalla amaga la dada o la història que en depèn.
 const params = new URLSearchParams(location.search);
-const CFG = (params.has('demo') ? window.PANTALLA_DEMO_CONFIG : window.PANTALLA_CONFIG) || {};
+const RAW = (params.has('demo') ? window.PANTALLA_DEMO_CONFIG : window.PANTALLA_CONFIG) || {};
+
+// ---------- Ajustos d'aquest aparell ----------
+// Es guarden al navegador (localStorage): cada aparell té els seus.
+const PREFS_KEY = 'retaule-ajustos';
+let PREFS = { tema: 'auto', amaga: [] };
+try { PREFS = { ...PREFS, ...JSON.parse(localStorage.getItem(PREFS_KEY) || '{}') }; } catch (e) { /* sense localStorage */ }
+function savePrefs() { try { localStorage.setItem(PREFS_KEY, JSON.stringify(PREFS)); } catch (e) { /* sense localStorage */ } }
+// Idioma de la interfície: el de l'aparell (ajustos), si no el de config.js (language), si no català.
+// Cada text porta les dues versions al mateix lloc: L('català', 'castellano').
+const LANG = params.get('idioma') || PREFS.idioma || RAW.language || 'ca'; // ?idioma=es per provar
+const L = (ca, es) => LANG === 'es' ? es : ca;
+const LOC = L('ca-ES', 'es-ES');
+document.documentElement.lang = LANG;
+// Seccions que es poden amagar: [clau, nom, és a la configuració?, com s'amaga]. Amagar-ne una és com no tenir-la configurada.
+const ITEMS = [
+  ['agenda', L('Agenda', 'Agenda'), c => c.calendars?.length, c => { c.calendars = []; }],
+  ['exterior', L('Temps exterior', 'Tiempo exterior'), c => c.entities?.extTemp, c => { delete c.entities.extTemp; }],
+  ['interior', L('Temperatura interior', 'Temperatura interior'), c => c.entities?.intTemp, c => { delete c.entities.intTemp; }],
+  ['descompte', L('Llum amb descompte', 'Luz con descuento'), c => c.discount, c => { c.discount = null; }],
+  ['consum', L('Consum elèctric', 'Consumo eléctrico'), c => c.entities?.power, c => { delete c.entities.power; }],
+  ['llums', L('Llums', 'Luces'), c => c.lights?.length, c => { c.lights = []; }],
+  ['portes', L('Portes i finestres', 'Puertas y ventanas'), c => c.openings?.length || c.entities?.openings, c => { c.openings = []; delete c.entities.openings; }],
+  ['persianes', L('Persianes', 'Persianas'), c => c.covers?.length, c => { c.covers = []; }],
+  ['media', L('Música i tele', 'Música y tele'), c => c.media?.length, c => { c.media = []; }],
+].filter(([, , has]) => has(RAW));
+const CFG = { ...RAW, entities: { ...RAW.entities } };
+for (const [key, , , hide] of ITEMS) if (PREFS.amaga.includes(key)) hide(CFG);
 const ENT = { sun: 'sun.sun', ...CFG.entities };
 const ROOM = CFG.roomName || 'Interior';
 const LIGHTS = (CFG.lights || []).map(l => [l.entity, l.zone || '', l.name || l.entity]);
 const SCENES = (CFG.scenes || []).map(x => [x.name, 'scene', 'turn_on', x.entity]);
-if (LIGHTS.length) SCENES.push(['Apagar-ho tot', 'homeassistant', 'turn_off', LIGHTS.map(l => l[0])]);
+if (LIGHTS.length) SCENES.push([L('Apagar-ho tot', 'Apagarlo todo'), 'homeassistant', 'turn_off', LIGHTS.map(l => l[0])]);
 const MEDIA = (CFG.media || []).map(m => [m.entity, m.name || m.entity]);
 const MEDIA_ACTIVE = ['playing', 'paused', 'on', 'buffering'];
 const CAL_COLORS = ['var(--accent)', 'var(--cal2)', 'var(--z0)', 'var(--z2)'];
@@ -119,9 +148,9 @@ const ROOMS = (CFG.rooms || []).map(r => [r.name, r.temp, r.hum || '', r.floor |
 const DOORBELL = CFG.doorbell?.sensor && CFG.doorbell?.camera ? { minutes: 2, ...CFG.doorbell } : null;
 // Traducció de les respostes ràpides que porta el Reolink (el missatge sona en anglès).
 const REPLY_CA = {
-  "I'm sorry. I think you've knocked on the wrong door.": 'Crec que s’han equivocat de porta',
-  'Hi, we will be right there. Please wait a moment.': 'Ara venim, un moment',
-  'Hi, please leave the package at the door. We will get it later.': 'Deixin el paquet a la porta',
+  "I'm sorry. I think you've knocked on the wrong door.": L('Crec que s’han equivocat de porta', 'Creo que se han equivocado de puerta'),
+  'Hi, we will be right there. Please wait a moment.': L('Ara venim, un moment', 'Ahora vamos, un momento'),
+  'Hi, please leave the package at the door. We will get it later.': L('Deixin el paquet a la porta', 'Dejen el paquete en la puerta'),
 };
 // Mode nit: pantalla fosca i mínima, sola entre aquestes hores o en activar l'escena night.scene. night: false el desactiva.
 const NIGHT = CFG.night === false ? null : { from: 0, to: 7, ...(CFG.night || {}) };
@@ -163,7 +192,7 @@ const isOn = id => st(id) === 'on'; // unavailable/unknown no compten mai com a 
 const num = id => { const v = parseFloat(st(id)); return Number.isFinite(v) ? v : null; };
 const attr = (id, k) => ent(id)?.attributes?.[k];
 const fname = id => attr(id, 'friendly_name') || id;
-const dec = (v, d) => v.toLocaleString('ca-ES', { minimumFractionDigits: d, maximumFractionDigits: d });
+const dec = (v, d) => v.toLocaleString(LOC, { minimumFractionDigits: d, maximumFractionDigits: d });
 const pad = n => String(n).padStart(2, '0');
 const hhmm = t => { const d = new Date(t); return pad(d.getHours()) + ':' + pad(d.getMinutes()); };
 const minsAgo = t => Math.max(0, Math.round((now() - t) / MIN));
@@ -171,7 +200,7 @@ const dur = ms => { const m = Math.max(0, Math.round(ms / MIN)); return m < 60 ?
 const watts = w => w == null ? '–' : (w >= 1000 ? dec(w / 1000, 1) + ' kW' : Math.round(w) + ' W');
 const euros = v => dec(v, 2) + ' €';
 const deg = (v, d) => v == null ? '–' : dec(v, d) + '°';
-const minuts = m => m === 1 ? '1 minut' : m + ' minuts';
+const minuts = m => m === 1 ? L('1 minut', '1 minuto') : m + L(' minuts', ' minutos');
 const lower1 = s => s ? s.charAt(0).toLowerCase() + s.slice(1) : s;
 
 // ---------- Connexió amb Home Assistant ----------
@@ -265,7 +294,7 @@ function applyEvent(ev) {
 
 function callService(domain, service, entityId, data, failMsg) {
   return send({ type: 'call_service', domain, service, service_data: data || {}, target: { entity_id: entityId } })
-    .catch(() => { toast(failMsg || 'No s\'ha pogut fer'); throw new Error('fail'); });
+    .catch(() => { toast(failMsg || L('No s\'ha pogut fer', 'No se ha podido hacer')); throw new Error('fail'); });
 }
 
 // ---------- Canvis optimistes ----------
@@ -286,16 +315,16 @@ const lightOn = id => { const p = pendingFor(id); return p && 'state' in p ? p.s
 const coverPos = id => { const p = pendingFor(id); if (p && 'pos' in p) return p.pos; const v = attr(id, 'current_position'); return typeof v === 'number' ? v : null; };
 
 function toggleLight(id) {
-  if (!ent(id) || ['unavailable', 'unknown'].includes(st(id))) return toast('Aquest llum no respon');
+  if (!ent(id) || ['unavailable', 'unknown'].includes(st(id))) return toast(L('Aquest llum no respon', 'Esta luz no responde'));
   S.pending[id] = { state: lightOn(id) ? 'off' : 'on', t: now() };
   render();
-  callService('homeassistant', 'toggle', id, null, 'No s\'ha pogut canviar el llum').catch(() => { delete S.pending[id]; render(); });
+  callService('homeassistant', 'toggle', id, null, L('No s\'ha pogut canviar el llum', 'No se ha podido cambiar la luz')).catch(() => { delete S.pending[id]; render(); });
 }
 function setCover(id, pos) {
   S.pending[id] = { pos, t: now() };
   render();
   const call = pos === 100 ? ['open_cover'] : pos === 0 ? ['close_cover'] : ['set_cover_position', { position: pos }];
-  callService('cover', call[0], id, call[1], 'No s\'ha pogut moure la persiana').catch(() => { delete S.pending[id]; render(); });
+  callService('cover', call[0], id, call[1], L('No s\'ha pogut moure la persiana', 'No se ha podido mover la persiana')).catch(() => { delete S.pending[id]; render(); });
 }
 function runScene(i) {
   const [, domain, service, target] = SCENES[i];
@@ -303,7 +332,7 @@ function runScene(i) {
   if (domain === 'homeassistant') for (const id of target) S.pending[id] = { state: 'off', t: now() };
   if (NIGHT?.scene && target === NIGHT.scene) { S.nightOverride = { value: true, auto: nightAuto() }; S.view = 'home'; }
   render();
-  callService(domain, service, target, null, 'No s\'ha pogut activar l\'escena').catch(() => { S.pending = {}; render(); });
+  callService(domain, service, target, null, L('No s\'ha pogut activar l\'escena', 'No se ha podido activar la escena')).catch(() => { S.pending = {}; render(); });
 }
 
 // ---------- Historial (per no confondre un reinici de HA amb un canvi real) ----------
@@ -426,7 +455,7 @@ async function refreshAgenda() {
     });
     const out = [];
     for (const [i, [id]] of CALENDARS.entries()) for (const e of r?.response?.[id]?.events || []) {
-      out.push({ cal: i, summary: e.summary || '(sense títol)', start: calDate(e.start), end: calDate(e.end),
+      out.push({ cal: i, summary: e.summary || L('(sense títol)', '(sin título)'), start: calDate(e.start), end: calDate(e.end),
         allDay: e.start.length === 10, location: (e.location || '').split('\n')[0] });
     }
     S.events = out.sort((a, b) => a.start - b.start || b.allDay - a.allDay);
@@ -445,15 +474,15 @@ function nextEvent() {
 function dayName(t) {
   const d = startOfDay(t), today = startOfDay(now());
   const diff = Math.round((d - today) / (24 * 60 * MIN));
-  if (diff <= 0) return 'avui';
-  if (diff === 1) return 'demà';
-  return d.toLocaleDateString('ca-ES', { weekday: 'long', day: 'numeric' });
+  if (diff <= 0) return L('avui', 'hoy');
+  if (diff === 1) return L('demà', 'mañana');
+  return d.toLocaleDateString(LOC, { weekday: 'long', day: 'numeric' });
 }
 
 // ---------- Història principal ----------
 const ALARM = {
-  disarmed: 'Desactivada', armed_home: 'Mode casa', armed_away: 'Activada', armed_night: 'Mode nit',
-  armed_vacation: 'Vacances', armed_custom_bypass: 'Personalitzada', arming: 'Activant-se', pending: 'Pendent', triggered: 'Disparada',
+  disarmed: L('Desactivada', 'Desactivada'), armed_home: L('Mode casa', 'Modo casa'), armed_away: L('Activada', 'Activada'), armed_night: L('Mode nit', 'Modo noche'),
+  armed_vacation: L('Vacances', 'Vacaciones'), armed_custom_bypass: L('Personalitzada', 'Personalizada'), arming: L('Activant-se', 'Activándose'), pending: L('Pendent', 'Pendiente'), triggered: L('Disparada', 'Disparada'),
 };
 
 // Sensors individuals del grup, que té subgrups (portes, finestres).
@@ -469,10 +498,13 @@ function heatingPct() { const v = num(ENT.heating); return v == null ? 0 : v; }
 function discountLeft() { const end = new Date(now()); end.setHours(DISC.to, 0, 0, 0); return end - now(); }
 
 // Fases de la rentadora (SmartThings), per a "Ara està …".
-const WASH_PHASE = { wash: 'rentant', ai_wash: 'rentant', pre_wash: 'fent el prerentat', rinse: 'esbandint', ai_rinse: 'esbandint',
-  spin: 'centrifugant', ai_spin: 'centrifugant', drying: 'assecant', weight_sensing: 'pesant la roba', air_wash: 'airejant', cooling: 'refredant' };
+const WASH_PHASE = LANG === 'es'
+  ? { wash: 'lavando', ai_wash: 'lavando', pre_wash: 'haciendo el prelavado', rinse: 'aclarando', ai_rinse: 'aclarando',
+    spin: 'centrifugando', ai_spin: 'centrifugando', drying: 'secando', weight_sensing: 'pesando la ropa', air_wash: 'aireando', cooling: 'enfriando' }
+  : { wash: 'rentant', ai_wash: 'rentant', pre_wash: 'fent el prerentat', rinse: 'esbandint', ai_rinse: 'esbandint',
+    spin: 'centrifugant', ai_spin: 'centrifugant', drying: 'assecant', weight_sensing: 'pesant la roba', air_wash: 'airejant', cooling: 'refredant' };
 function stories() {
-  if (!Object.keys(S.ents).length) return [{ tone: 'info', kicker: 'Casa', title: 'Connectant amb casa…', body: '', facts: [] }];
+  if (!Object.keys(S.ents).length) return [{ tone: 'info', kicker: L('Casa', 'Casa'), title: L('Connectant amb casa…', 'Conectando con casa…'), body: '', facts: [] }];
   const out = [];
   const heat = heatingPct();
   const sensors = openingSensors();
@@ -480,9 +512,9 @@ function stories() {
   // 1. Tempesta
   const dist = num(ENT.lightningDist);
   if (S.strikes && S.strikes.count > 0 && S.strikes.last && now() - S.strikes.last <= 30 * MIN && dist != null && dist <= 15) {
-    out.push({ tone: 'warn', kicker: 'Temps', title: `Tempesta a ${Math.round(dist)} km`,
-      body: 'Els llamps s’acosten. Si cal, desendolla els aparells més sensibles.',
-      facts: [['Llamps (30 min)', Math.round(S.strikes.count)], ['Més proper', Math.round(dist) + ' km']] });
+    out.push({ tone: 'warn', kicker: L('Temps', 'Tiempo'), title: L(`Tempesta a ${Math.round(dist)} km`, `Tormenta a ${Math.round(dist)} km`),
+      body: L('Els llamps s’acosten. Si cal, desendolla els aparells més sensibles.', 'Los rayos se acercan. Si hace falta, desenchufa los aparatos más sensibles.'),
+      facts: [[L('Llamps (30 min)', 'Rayos (30 min)'), Math.round(S.strikes.count)], [L('Més proper', 'Más cercano'), Math.round(dist) + ' km']] });
   }
 
   // 2. Finestra oberta amb la calefacció en marxa
@@ -490,17 +522,18 @@ function stories() {
   if (open5.length && heat > 0) {
     const first = open5.sort((a, b) => ent(a).last_changed - ent(b).last_changed)[0];
     const name = shortName(first);
-    out.push({ tone: 'warn', kicker: 'Calefacció', title: 'Finestra oberta amb la calefacció en marxa',
-      body: `La ${esc(name)} fa ${minuts(minsAgo(ent(first).last_changed))} que està oberta i ${esc(lower1(ROOM))} està escalfant. Tanca-la o apaga la calefacció.`,
-      facts: [['Oberta', open5.length > 1 ? open5.length + ' obertures' : fname(first)], ['Consigna', deg(attr(ENT.climate, 'temperature'), 1)]] });
+    out.push({ tone: 'warn', kicker: L('Calefacció', 'Calefacción'), title: L('Finestra oberta amb la calefacció en marxa', 'Ventana abierta con la calefacción encendida'),
+      body: L(`La ${esc(name)} fa ${minuts(minsAgo(ent(first).last_changed))} que està oberta i ${esc(lower1(ROOM))} està escalfant. Tanca-la o apaga la calefacció.`,
+        `«${esc(name)}» lleva ${minuts(minsAgo(ent(first).last_changed))} abierta y ${esc(ROOM)} está calentando. Ciérrala o apaga la calefacción.`),
+      facts: [[L('Oberta', 'Abierta'), open5.length > 1 ? open5.length + L(' obertures', ' aberturas') : fname(first)], [L('Consigna', 'Consigna'), deg(attr(ENT.climate, 'temperature'), 1)]] });
   }
 
   // 3. Esdeveniment del calendari que comença d'aquí a menys de 2 hores
   const soon = (S.events || []).find(e => !e.allDay && e.start > now() && e.start - now() <= 120 * MIN);
   if (soon) {
-    out.push({ tone: 'good', kicker: 'Agenda', title: `${esc(soon.summary)} a les ${hhmm(soon.start)}`,
-      body: `Comença d’aquí ${dur(soon.start - now())}.${soon.location ? ' A ' + esc(soon.location) + '.' : ''}`,
-      facts: [['Calendari', CALENDARS[soon.cal][1]], ['Fins a', hhmm(soon.end)]] });
+    out.push({ tone: 'good', kicker: L('Agenda', 'Agenda'), title: `${esc(soon.summary)} ${L('a les', 'a las')} ${hhmm(soon.start)}`,
+      body: L(`Comença d’aquí ${dur(soon.start - now())}.`, `Empieza dentro de ${dur(soon.start - now())}.`) + (soon.location ? L(' A ', ' En ') + esc(soon.location) + '.' : ''),
+      facts: [[L('Calendari', 'Calendario'), CALENDARS[soon.cal][1]], [L('Fins a', 'Hasta'), hhmm(soon.end)]] });
   }
 
   // 4. Rentaplats acabat
@@ -508,60 +541,63 @@ function stories() {
   if (dish) {
     const inDiscount = isDiscountHour(new Date(dish.finishedAt).getHours());
     const n = num(ENT.dishCount);
-    out.push({ tone: 'good', kicker: 'Cuina', title: 'Els plats ja estan nets',
-      body: `El rentaplats ha acabat fa ${minuts(minsAgo(dish.finishedAt))}${inDiscount ? ', dins la franja amb descompte' : ''}.`,
-      facts: [['Durada', dur(dish.finishedAt - dish.startedAt)], ...(n != null ? [['Aquest any', n + ' rentats']] : [])] });
+    out.push({ tone: 'good', kicker: L('Cuina', 'Cocina'), title: L('Els plats ja estan nets', 'Los platos ya están limpios'),
+      body: L(`El rentaplats ha acabat fa ${minuts(minsAgo(dish.finishedAt))}${inDiscount ? ', dins la franja amb descompte' : ''}.`,
+        `El lavavajillas ha terminado hace ${minuts(minsAgo(dish.finishedAt))}${inDiscount ? ', dentro de la franja con descuento' : ''}.`),
+      facts: [[L('Durada', 'Duración'), dur(dish.finishedAt - dish.startedAt)], ...(n != null ? [[L('Aquest any', 'Este año'), n + L(' rentats', ' lavados')]] : [])] });
   }
 
   // 5. Rentadora acabada
   const wash = finishedRecently(ENT.washer);
   if (wash) {
     const n = num(ENT.washCount);
-    out.push({ tone: 'good', kicker: 'Safareig', title: 'La roba està llesta',
-      body: `La rentadora ha acabat a les ${hhmm(wash.finishedAt)}. Millor estendre-la aviat perquè no es quedi arrugada.`,
-      facts: [['Durada', dur(wash.finishedAt - wash.startedAt)], ...(n != null ? [['Aquest any', n + ' rentades']] : [])] });
+    out.push({ tone: 'good', kicker: L('Safareig', 'Lavadero'), title: L('La roba està llesta', 'La ropa está lista'),
+      body: L(`La rentadora ha acabat a les ${hhmm(wash.finishedAt)}. Millor estendre-la aviat perquè no es quedi arrugada.`,
+        `La lavadora ha terminado a las ${hhmm(wash.finishedAt)}. Mejor tenderla pronto para que no se arrugue.`),
+      facts: [[L('Durada', 'Duración'), dur(wash.finishedAt - wash.startedAt)], ...(n != null ? [[L('Aquest any', 'Este año'), n + L(' rentades', ' lavadoras')]] : [])] });
   }
 
   // 5b. Rentadora en marxa, amb l'hora que acaba
   const wEnd = Date.parse(st(ENT.washerEnd));
   if (st(ENT.washerState) === 'run' && Number.isFinite(wEnd) && wEnd > now()) {
     const phase = WASH_PHASE[st(ENT.washerJob)];
-    out.push({ tone: 'info', kicker: 'Safareig', title: `La rentadora acaba a les ${hhmm(wEnd)}`,
-      mini: `Rentadora: acaba a les ${hhmm(wEnd)}`,
-      body: `Queden ${dur(wEnd - now())}.${phase ? ' Ara està ' + phase + '.' : ''}`,
-      facts: [['Acaba', hhmm(wEnd)], ...(phase ? [['Fase', phase.charAt(0).toUpperCase() + phase.slice(1)]] : [])] });
+    out.push({ tone: 'info', kicker: L('Safareig', 'Lavadero'), title: L(`La rentadora acaba a les ${hhmm(wEnd)}`, `La lavadora termina a las ${hhmm(wEnd)}`),
+      mini: L(`Rentadora: acaba a les ${hhmm(wEnd)}`, `Lavadora: termina a las ${hhmm(wEnd)}`),
+      body: L(`Queden ${dur(wEnd - now())}.`, `Quedan ${dur(wEnd - now())}.`) + (phase ? L(' Ara està ', ' Ahora está ') + phase + '.' : ''),
+      facts: [[L('Acaba', 'Termina'), hhmm(wEnd)], ...(phase ? [[L('Fase', 'Fase'), phase.charAt(0).toUpperCase() + phase.slice(1)]] : [])] });
   }
 
   // 6. Pluja
   const r1 = num(ENT.rain1h);
   if (r1 != null && r1 > 0) {
     const openNow = sensors.filter(isOn);
-    out.push({ tone: 'info', kicker: 'Temps', title: 'Ha començat a ploure',
-      body: openNow.length ? `Compte: ${openNow.length === 1 ? 'la ' + esc(shortName(openNow[0])) + ' està oberta' : 'hi ha ' + openNow.length + ' obertures obertes'}.`
-        : 'Portes i finestres estan tancades. Avui no caldrà regar.',
-      facts: [['Última hora', dec(r1, 1) + ' mm'], ['Últimes 24 h', num(ENT.rain24h) == null ? '–' : dec(num(ENT.rain24h), 1) + ' mm'],
-        ['Humitat', num(ENT.extHum) == null ? '–' : Math.round(num(ENT.extHum)) + '%']] });
+    out.push({ tone: 'info', kicker: L('Temps', 'Tiempo'), title: L('Ha començat a ploure', 'Ha empezado a llover'),
+      body: openNow.length ? (openNow.length === 1 ? L(`Compte: la ${esc(shortName(openNow[0]))} està oberta.`, `Cuidado: «${esc(shortName(openNow[0]))}» está abierta.`)
+          : L(`Compte: hi ha ${openNow.length} obertures obertes.`, `Cuidado: hay ${openNow.length} aberturas abiertas.`))
+        : L('Portes i finestres estan tancades. Avui no caldrà regar.', 'Puertas y ventanas están cerradas. Hoy no hará falta regar.'),
+      facts: [[L('Última hora', 'Última hora'), dec(r1, 1) + ' mm'], [L('Últimes 24 h', 'Últimas 24 h'), num(ENT.rain24h) == null ? '–' : dec(num(ENT.rain24h), 1) + ' mm'],
+        [L('Humitat', 'Humedad'), num(ENT.extHum) == null ? '–' : Math.round(num(ENT.extHum)) + '%']] });
   }
 
   // 7. Llum amb descompte
   if (discountOn()) {
-    out.push({ tone: 'good', kicker: 'Energia', title: `Llum amb descompte fins a les ${pad(DISC.to)}:00`,
-      mini: `Llum a −${DISC.percent}% fins a les ${pad(DISC.to)}:00 · queden ${dur(discountLeft())}`,
-      body: `Bon moment per posar la rentadora o el rentaplats. Queden ${dur(discountLeft())} de franja barata.`,
+    out.push({ tone: 'good', kicker: L('Energia', 'Energía'), title: L(`Llum amb descompte fins a les ${pad(DISC.to)}:00`, `Luz con descuento hasta las ${pad(DISC.to)}:00`),
+      mini: L(`Llum a −${DISC.percent}% fins a les ${pad(DISC.to)}:00 · queden ${dur(discountLeft())}`, `Luz a −${DISC.percent}% hasta las ${pad(DISC.to)}:00 · quedan ${dur(discountLeft())}`),
+      body: L(`Bon moment per posar la rentadora o el rentaplats. Queden ${dur(discountLeft())} de franja barata.`, `Buen momento para poner la lavadora o el lavavajillas. Quedan ${dur(discountLeft())} de franja barata.`),
       // Només les màquines en marxa: que estiguin aturades no aporta res.
-      facts: [[ENT.dishwasher, 'Rentaplats'], [ENT.washer, 'Rentadora']].filter(([id]) => id && isOn(id)).map(([, name]) => [name, 'En marxa']) });
+      facts: [[ENT.dishwasher, L('Rentaplats', 'Lavavajillas')], [ENT.washer, L('Rentadora', 'Lavadora')]].filter(([id]) => id && isOn(id)).map(([, name]) => [name, L('En marxa', 'En marcha')]) });
   }
 
   // 8. Tot en ordre
   const al = st(ENT.alarm);
   const anyOpen = sensors.some(isOn);
   const coversOpen = COVERS.filter(([id]) => (coverPos(id) ?? 0) > 0).length;
-  out.push({ tone: 'info', kicker: 'Casa', title: 'Tot en ordre', fallback: true,
-    body: [al && al !== 'disarmed' && ALARM[al] ? `Alarma activada (${lower1(ALARM[al])}).` : al === 'disarmed' ? 'Alarma desactivada.' : '',
-      !ENT.openings ? '' : anyOpen ? 'Hi ha alguna porta o finestra oberta.' : 'Portes i finestres tancades.'].filter(Boolean).join(' '),
-    facts: [...(ENT.alarm ? [['Alarma', ALARM[al] || '–']] : []),
-      ...(COVERS.length ? [['Persianes', coversOpen === 0 ? 'Tancades' : coversOpen === COVERS.length ? 'Obertes' : coversOpen + ' obertes']] : []),
-      ...(ENT.servers ? [['Servidors', watts(num(ENT.servers))]] : [])] });
+  out.push({ tone: 'info', kicker: L('Casa', 'Casa'), title: L('Tot en ordre', 'Todo en orden'), fallback: true,
+    body: [al && al !== 'disarmed' && ALARM[al] ? L(`Alarma activada (${lower1(ALARM[al])}).`, `Alarma activada (${lower1(ALARM[al])}).`) : al === 'disarmed' ? L('Alarma desactivada.', 'Alarma desactivada.') : '',
+      !ENT.openings ? '' : anyOpen ? L('Hi ha alguna porta o finestra oberta.', 'Hay alguna puerta o ventana abierta.') : L('Portes i finestres tancades.', 'Puertas y ventanas cerradas.')].filter(Boolean).join(' '),
+    facts: [...(ENT.alarm ? [[L('Alarma', 'Alarma'), ALARM[al] || '–']] : []),
+      ...(COVERS.length ? [[L('Persianes', 'Persianas'), coversOpen === 0 ? L('Tancades', 'Cerradas') : coversOpen === COVERS.length ? L('Obertes', 'Abiertas') : coversOpen + L(' obertes', ' abiertas')]] : []),
+      ...(ENT.servers ? [[L('Servidors', 'Servidores'), watts(num(ENT.servers))]] : [])] });
 
   return out;
 }
@@ -585,7 +621,13 @@ const ICON = {
   cal: '<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/>',
   flame: '<path d="M12 22c4 0 7-2.7 7-6.6 0-3.1-2-5.6-3.6-7.2-.4 1.6-1.3 2.8-2.4 3.3.3-3.3-1.2-6.6-4-8.5.2 3-1.6 5.4-3.1 7.3C4.6 11.9 5 13.6 5 15.4 5 19.3 8 22 12 22z"/>',
   bell: '<path d="M6 16V11a6 6 0 0 1 12 0v5l2 2H4z"/><path d="M10 21h4"/>',
+  sliders: '<path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/>',
   door: '<path d="M6 21V4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v17"/><path d="M3 21h18"/><path d="M14.5 12h.01" stroke-width="2.4"/>',
+  // Porta i finestra, obertes i tancades: Material Design Icons (pictogrammers.com, Apache 2.0), les mateixes que Home Assistant.
+  doorShut: '<path fill="currentColor" stroke="none" d="M16,11H18V13H16V11M12,3H19C20.11,3 21,3.89 21,5V19H22V21H2V19H10V5C10,3.89 10.89,3 12,3M12,5V19H19V5H12Z"/>',
+  doorOpen: '<path fill="currentColor" stroke="none" d="M12,3C10.89,3 10,3.89 10,5H3V19H2V21H22V19H21V5C21,3.89 20.11,3 19,3H12M12,5H19V19H12V5M5,11H7V13H5V11Z"/>',
+  window: '<path fill="currentColor" stroke="none" d="M21 20V2H3V20H1V23H23V20M19 4V11H13V4M5 4H11V11H5M5 20V13H11V20M13 20V13H19V20Z"/>',
+  windowOpen: '<path fill="currentColor" stroke="none" d="M21 20V2H3V20H1V23H23V20M19 4V11H17V4M5 4H7V11H5M5 20V13H7V20M9 20V4H15V20M17 20V13H19V20Z"/>',
   minus: '<path d="M5 12h14"/>',
   plus: '<path d="M12 5v14M5 12h14"/>',
   moon: '<path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z"/>',
@@ -605,20 +647,20 @@ function problems() {
   if (!Object.keys(S.ents).length) return [];
   const out = [];
   const na = id => ent(id) && ['unavailable', 'unknown'].includes(st(id));
-  const since = id => 'Fa ' + dur(now() - ent(id).last_changed);
+  const since = id => L('Fa ', 'Hace ') + dur(now() - ent(id).last_changed);
   for (const id of openingSensors().filter(na))
-    out.push({ key: id, icon: 'home', section: 'Portes i finestres', text: `El sensor de la ${shortName(id)} no respon. No el comptem com a obert; potser li cal pila.`, when: since(id) });
+    out.push({ key: id, icon: 'home', section: L('Portes i finestres', 'Puertas y ventanas'), text: L(`El sensor de la ${shortName(id)} no respon. No el comptem com a obert; potser li cal pila.`, `El sensor «${shortName(id)}» no responde. No lo contamos como abierto; quizá necesita pila.`), when: since(id) });
   for (const [id, name] of CALENDARS)
-    if (na(id)) out.push({ key: id, icon: 'cal', section: 'Agenda', text: `El calendari ${name} no està disponible a Home Assistant.`, when: since(id) });
+    if (na(id)) out.push({ key: id, icon: 'cal', section: L('Agenda', 'Agenda'), text: L(`El calendari ${name} no està disponible a Home Assistant.`, `El calendario ${name} no está disponible en Home Assistant.`), when: since(id) });
   if (S.agendaError && !CALENDARS.some(([id]) => na(id)))
-    out.push({ key: 'agenda', icon: 'cal', section: 'Agenda', text: 'No s’han pogut carregar els esdeveniments.' });
-  for (const [k, section, icon, what] of [['extTemp', 'Exterior', 'thermo', 'L’estació meteorològica'], ['intTemp', ROOM, 'home', 'El sensor de temperatura'],
-    ['climate', 'Calefacció', 'home', 'El termòstat'], ['power', 'Energia', 'plug', 'El mesurador de consum']])
-    if (na(ENT[k])) out.push({ key: ENT[k], icon, section, text: `${what} no respon.`, when: since(ENT[k]) });
+    out.push({ key: 'agenda', icon: 'cal', section: L('Agenda', 'Agenda'), text: L('No s’han pogut carregar els esdeveniments.', 'No se han podido cargar los eventos.') });
+  for (const [k, section, icon, what] of [['extTemp', L('Exterior', 'Exterior'), 'thermo', L('L’estació meteorològica', 'La estación meteorológica')], ['intTemp', ROOM, 'home', L('El sensor de temperatura', 'El sensor de temperatura')],
+    ['climate', L('Calefacció', 'Calefacción'), 'home', L('El termòstat', 'El termostato')], ['power', L('Energia', 'Energía'), 'plug', L('El mesurador de consum', 'El medidor de consumo')]])
+    if (na(ENT[k])) out.push({ key: ENT[k], icon, section, text: what + L(' no respon.', ' no responde.'), when: since(ENT[k]) });
   for (const [id, , name] of LIGHTS)
-    if (na(id)) out.push({ key: id, icon: 'bulb', section: 'Llums', text: `${name} no respon.`, when: since(id) });
+    if (na(id)) out.push({ key: id, icon: 'bulb', section: L('Llums', 'Luces'), text: name + L(' no respon.', ' no responde.'), when: since(id) });
   for (const [id, name] of COVERS)
-    if (na(id)) out.push({ key: id, icon: 'blinds', section: 'Persianes', text: `La persiana ${lower1(name)} no respon.`, when: since(id) });
+    if (na(id)) out.push({ key: id, icon: 'blinds', section: L('Persianes', 'Persianas'), text: L(`La persiana ${lower1(name)} no respon.`, `La persiana ${lower1(name)} no responde.`), when: since(id) });
   return out;
 }
 let seen = new Set();
@@ -630,7 +672,8 @@ function markSeen() {
 
 function bell() {
   const fresh = problems().some(p => !seen.has(p.key));
-  return `<button data-a="go" data-v="avisos" aria-label="Avisos" style="position:absolute;top:36px;right:14px;width:44px;height:44px;border-radius:22px;display:flex;align-items:center;justify-content:center;color:var(--muted)">
+  return `<button data-a="go" data-v="ajustos" aria-label="${L('Ajustos', 'Ajustes')}" style="position:absolute;top:36px;right:62px;width:44px;height:44px;border-radius:22px;display:flex;align-items:center;justify-content:center;color:var(--muted)">${svg(ICON.sliders, 24, 1.7)}</button>
+  <button data-a="go" data-v="avisos" aria-label="${L('Avisos', 'Avisos')}" style="position:absolute;top:36px;right:14px;width:44px;height:44px;border-radius:22px;display:flex;align-items:center;justify-content:center;color:var(--muted)">
     ${svg(ICON.bell, 24, 1.7)}${fresh ? '<span style="position:absolute;top:8px;right:9px;width:10px;height:10px;border-radius:50%;background:var(--red);box-shadow:0 0 0 2px var(--bg)"></span>' : ''}</button>`;
 }
 
@@ -641,22 +684,40 @@ function viewAvisos() {
       <div style="display:flex;flex-direction:column;gap:4px;min-width:0;flex:1 1 auto">
         <span class="lbl">${esc(p.section)}</span><span style="font-size:20px;font-weight:500">${esc(p.text)}</span></div>
       ${p.when ? `<span class="num" style="flex:none;font-size:15px;color:var(--muted)">${esc(p.when)}</span>` : ''}</div>`).join('');
-  return `<div class="panel">${head('Avisos')}
+  return `<div class="panel">${head(L('Avisos', 'Avisos'))}
   ${list.length ? `<div style="display:flex;flex-direction:column;overflow:hidden">${rows}</div>`
-    : `<p style="margin:0;font-size:24px;color:var(--muted)">Tot funciona. Aquí sortiran els sensors o serveis que fallin.</p>`}</div>`;
+    : `<p style="margin:0;font-size:24px;color:var(--muted)">${L('Tot funciona. Aquí sortiran els sensors o serveis que fallin.', 'Todo funciona. Aquí saldrán los sensores o servicios que fallen.')}</p>`}</div>`;
 }
 
 // ---------- Vistes ----------
+function viewAjustos() {
+  const seg = (v, txt) => `<button data-a="tema" data-t="${v}" class="seg${PREFS.tema === v ? ' sel' : ''}">${txt}</button>`;
+  const tiles = ITEMS.map(([key, name]) => {
+    const on = !PREFS.amaga.includes(key);
+    return `<button data-a="item" data-k="${key}" aria-pressed="${on}" class="tile${on ? ' on' : ''}" style="height:96px">
+      <span style="font-size:19px;font-weight:500;margin-top:auto">${esc(name)}</span>
+      <span style="font-size:15px;opacity:.8">${on ? L('Es veu', 'Se ve') : L('Amagat', 'Oculto')}</span></button>`;
+  }).join('');
+  return `<div class="panel">${head(L('Ajustos', 'Ajustes'))}
+  <div style="display:flex;flex-direction:column;gap:12px;max-width:520px"><span class="lbl">${L('Tema', 'Tema')}</span>
+    <div style="display:flex;gap:10px">${seg('auto', L('Automàtic', 'Automático'))}${seg('clar', L('Clar', 'Claro'))}${seg('fosc', L('Fosc', 'Oscuro'))}</div></div>
+  <div style="display:flex;flex-direction:column;gap:12px;max-width:520px"><span class="lbl">${L('Idioma', 'Idioma')}</span>
+    <div style="display:flex;gap:10px"><button data-a="idioma" data-l="ca" class="seg${LANG === 'ca' ? ' sel' : ''}">Català</button><button data-a="idioma" data-l="es" class="seg${LANG === 'es' ? ' sel' : ''}">Castellano</button></div></div>
+  ${ITEMS.length ? `<div style="display:flex;flex-direction:column;gap:12px"><span class="lbl">${L('Què es veu', 'Qué se ve')}</span>
+    <div class="g4" style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px">${tiles}</div></div>` : ''}
+  <span style="margin-top:auto;font-size:14px;color:var(--muted)">${L('Els ajustos es guarden només en aquest aparell.', 'Los ajustes se guardan solo en este aparato.')}</span></div>`;
+}
+
 // Línia de temps amb els propers esdeveniments amb hora, i els de tot el dia d'avui a la capçalera.
 function agendaStrip() {
   if (!S.events) return '';
   const allDay = eventsOn(startOfDay(now())).filter(e => e.allDay);
   const timed = S.events.filter(e => !e.allDay && e.end > now()).slice(0, 4);
-  if (!allDay.length && !timed.length) return `<p style="margin:0 0 28px;font-size:18px;color:var(--muted)">Res a l’agenda els propers ${AGENDA_DAYS} dies.</p>`;
+  if (!allDay.length && !timed.length) return `<p style="margin:0 0 28px;font-size:18px;color:var(--muted)">${L(`Res a l’agenda els propers ${AGENDA_DAYS} dies.`, `Nada en la agenda los próximos ${AGENDA_DAYS} días.`)}</p>`;
   const when = e => {
     const d = dayName(e.start);
-    if (d === 'avui') return hhmm(e.start);
-    const day = d === 'demà' ? 'Demà' : e.start.toLocaleDateString('ca-ES', { weekday: 'short' }).replace(/^./, c => c.toUpperCase());
+    if (d === L('avui', 'hoy')) return hhmm(e.start);
+    const day = d === L('demà', 'mañana') ? L('Demà', 'Mañana') : e.start.toLocaleDateString(LOC, { weekday: 'short' }).replace(/^./, c => c.toUpperCase());
     return `<span style="font-size:16px;color:var(--muted);font-weight:400">${day}</span> ${hhmm(e.start)}`;
   };
   const node = (e, first) => `<div style="flex:1 1 0;min-width:0">
@@ -667,8 +728,8 @@ function agendaStrip() {
       <div style="font-size:17px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding-right:12px">${esc(e.summary)}</div>
       <div style="font-size:14px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding-right:12px">${esc(e.location || CALENDARS[e.cal][1])}</div></div>`;
   return `<button data-a="go" data-v="agenda" style="display:block;width:100%;margin-bottom:28px">
-    <div style="display:flex;gap:10px;align-items:baseline;margin-bottom:12px;min-width:0"><span class="lbl" style="flex:none">${allDay.length ? 'Avui' : 'Agenda'}</span>
-      ${allDay.length ? `<span style="font-size:16px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">Tot el dia: ${allDay.map(e => esc(e.summary)).join(' · ')}</span>` : ''}</div>
+    <div style="display:flex;gap:10px;align-items:baseline;margin-bottom:12px;min-width:0"><span class="lbl" style="flex:none">${allDay.length ? L('Avui', 'Hoy') : L('Agenda', 'Agenda')}</span>
+      ${allDay.length ? `<span style="font-size:16px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${L('Tot el dia', 'Todo el día')}: ${allDay.map(e => esc(e.summary)).join(' · ')}</span>` : ''}</div>
     ${timed.length ? `<div class="strip" style="display:flex">${timed.map((e, i) => node(e, i === 0)).join('')}</div>` : ''}</button>`;
 }
 
@@ -701,21 +762,21 @@ function syncCam(show) {
   camFor = params.get('camera') || DOORBELL.camera; // ?camera= per provar una altra càmera
   send({ type: 'camera/stream', entity_id: camFor, format: 'hls' })
     .then(r => { if (camFor && r?.url) playHls(v, (CFG.haUrl || '').replace(/\/$/, '') + r.url); })
-    .catch(() => { camFor = null; toast('No s\'ha pogut obrir el vídeo del timbre'); });
+    .catch(() => { camFor = null; toast(L('No s\'ha pogut obrir el vídeo del timbre', 'No se ha podido abrir el vídeo del timbre')); });
 }
 function viewTimbre(manual) {
   const opts = DOORBELL.replies ? (attr(DOORBELL.replies, 'options') || []) : [];
   const at = params.has('timbre') ? now() : S.ringAt;
   return `<div class="timbre" style="height:744px;box-sizing:border-box;padding:56px 56px 56px 776px;display:flex;flex-direction:column;position:relative">
-    <div class="cam-box" style="position:absolute;left:56px;top:117px;width:680px;height:510px;border-radius:20px;background:#000;display:flex;align-items:center;justify-content:center;color:#8F9BB3;font-size:18px">${demo ? 'Aquí es veu el vídeo en directe del timbre' : 'Connectant amb el timbre…'}</div>
-    <div class="kicker" style="color:var(--accent)"><i></i><span>Timbre</span></div>
-    <h1 style="margin:20px 0 0;font-size:48px;line-height:1.05;font-weight:500;letter-spacing:-.02em">${manual ? 'Porta d’entrada' : 'Truquen a la porta'}</h1>
-    <p style="margin:12px 0 0;font-size:20px;color:var(--muted)">${manual ? 'En directe' : 'A les ' + hhmm(at)}</p>
-    ${opts.length ? `<span class="lbl" style="margin-top:36px">Resposta ràpida</span>
+    <div class="cam-box" style="position:absolute;left:56px;top:117px;width:680px;height:510px;border-radius:20px;background:#000;display:flex;align-items:center;justify-content:center;color:#8F9BB3;font-size:18px">${demo ? L('Aquí es veu el vídeo en directe del timbre', 'Aquí se ve el vídeo en directo del timbre') : L('Connectant amb el timbre…', 'Conectando con el timbre…')}</div>
+    <div class="kicker" style="color:var(--accent)"><i></i><span>${L('Timbre', 'Timbre')}</span></div>
+    <h1 style="margin:20px 0 0;font-size:48px;line-height:1.05;font-weight:500;letter-spacing:-.02em">${manual ? L('Porta d’entrada', 'Puerta de entrada') : L('Truquen a la porta', 'Llaman a la puerta')}</h1>
+    <p style="margin:12px 0 0;font-size:20px;color:var(--muted)">${manual ? L('En directe', 'En directo') : L('A les ', 'A las ') + hhmm(at)}</p>
+    ${opts.length ? `<span class="lbl" style="margin-top:36px">${L('Resposta ràpida', 'Respuesta rápida')}</span>
     <div style="display:flex;flex-direction:column;gap:10px;margin-top:12px">${opts.map((o, i) => `<button data-a="reply" data-i="${i}" class="outline" style="min-height:56px;padding:10px 20px;border-radius:28px;font-size:17px;font-weight:500;text-align:left">${esc(REPLY_CA[o] || o)}</button>`).join('')}</div>` : ''}
     <div style="margin-top:auto;display:flex;gap:12px">
-      <button data-a="camsound" aria-label="${S.camSound ? 'Treure el so' : 'Activar el so'}" class="${S.camSound ? 'solid' : 'outline'}" style="width:60px;height:60px;border-radius:30px;display:flex;align-items:center;justify-content:center;flex:none">${svg(ICON[S.camSound ? 'speaker' : 'mute'], 24, 1.8)}</button>
-      <button data-a="ringclose" class="solid done" style="flex:1 1 auto;height:60px;border-radius:30px;text-align:center">Tancar</button></div>
+      <button data-a="camsound" aria-label="${S.camSound ? L('Treure el so', 'Quitar el sonido') : L('Activar el so', 'Activar el sonido')}" class="${S.camSound ? 'solid' : 'outline'}" style="width:60px;height:60px;border-radius:30px;display:flex;align-items:center;justify-content:center;flex:none">${svg(ICON[S.camSound ? 'speaker' : 'mute'], 24, 1.8)}</button>
+      <button data-a="ringclose" class="solid done" style="flex:1 1 auto;height:60px;border-radius:30px;text-align:center">${L('Tancar', 'Cerrar')}</button></div>
   </div>`;
 }
 
@@ -729,22 +790,22 @@ const alarmNeedsCode = () => !!ALARM_SCRIPT || attr(ENT.alarm, 'code_format') !=
 function disarm() {
   const data = alarmNeedsCode() ? { code: S.code } : {};
   S.code = ''; S.confirmDisarm = 0; render();
-  const fail = alarmNeedsCode() ? 'Codi incorrecte' : 'No s\'ha pogut desactivar';
+  const fail = alarmNeedsCode() ? L('Codi incorrecte', 'Código incorrecto') : L('No s\'ha pogut desactivar', 'No se ha podido desactivar');
   // L'script torna {ok: true|false}: un codi dolent no és un error de HA, és una resposta.
   if (ALARM_SCRIPT) send({ type: 'call_service', domain: 'script', service: ALARM_SCRIPT.replace(/^script\./, ''), service_data: data, return_response: true })
-    .then(r => { if (!r?.response?.ok) toast(fail); }, () => toast('No s\'ha pogut desactivar'));
+    .then(r => { if (!r?.response?.ok) toast(fail); }, () => toast(L('No s\'ha pogut desactivar', 'No se ha podido desactivar')));
   else callService('alarm_control_panel', 'alarm_disarm', ENT.alarm, data, fail).catch(() => {});
 }
 function keypad() {
   const key = (label, a, extra = '') => `<button data-a="${a}" data-k="${label}" class="outline num" style="height:84px;border-radius:42px;font-size:32px;font-weight:500;display:flex;align-items:center;justify-content:center;${extra}">${label}</button>`;
   const dots = Array.from({ length: Math.max(4, S.code.length) }, (_, i) => `<span style="width:16px;height:16px;border-radius:50%;${i < S.code.length ? 'background:var(--ink)' : 'box-shadow:inset 0 0 0 1.5px var(--edge)'}"></span>`).join('');
   return `<div class="keypad" style="display:flex;flex-direction:column;gap:20px;width:360px">
-    <div style="display:flex;gap:12px;height:20px;align-items:center;justify-content:center" aria-label="${S.code.length} xifres">${dots}</div>
+    <div style="display:flex;gap:12px;height:20px;align-items:center;justify-content:center" aria-label="${S.code.length} ${L('xifres', 'cifras')}">${dots}</div>
     <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px">
       ${[1, 2, 3, 4, 5, 6, 7, 8, 9].map(n => key(n, 'key')).join('')}
-      <button data-a="keydel" aria-label="Esborrar" class="outline" style="height:84px;border-radius:42px;display:flex;align-items:center;justify-content:center">${svg(ICON.del, 28, 1.7)}</button>
+      <button data-a="keydel" aria-label="${L('Esborrar', 'Borrar')}" class="outline" style="height:84px;border-radius:42px;display:flex;align-items:center;justify-content:center">${svg(ICON.del, 28, 1.7)}</button>
       ${key(0, 'key')}
-      <button data-a="disarm" aria-label="Desactivar" class="solid" style="height:84px;border-radius:42px;display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:600${S.code ? '' : ';opacity:.4'}"${S.code ? '' : ' disabled'}>OK</button>
+      <button data-a="disarm" aria-label="${L('Desactivar', 'Desactivar')}" class="solid" style="height:84px;border-radius:42px;display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:600${S.code ? '' : ';opacity:.4'}"${S.code ? '' : ' disabled'}>OK</button>
     </div></div>`;
 }
 // Amb l'alarma activada, la pantalla és tota per a l'alarma: teclat si HA demana codi; si no, un botó que s'ha de tocar dues vegades.
@@ -755,9 +816,9 @@ function viewAlarm() {
   const color = al === 'triggered' ? 'var(--red)' : al === 'pending' || al === 'arming' ? 'var(--orange)' : 'var(--ok)';
   const delay = attr(ENT.alarm, 'delay');
   const left = al === 'pending' && delay ? Math.max(0, Math.ceil(delay - (now() - e.last_changed) / 1000)) : null;
-  const title = al === 'triggered' ? 'L’alarma està sonant' : al === 'pending' ? 'Desactiva l’alarma' : al === 'arming' ? 'Activant l’alarma' : 'Alarma activada';
-  const sub = al === 'triggered' ? 'Introdueix el codi per aturar-la.' : al === 'pending' ? (left != null ? `Sonarà d’aquí ${left} s.` : 'Si no la desactives, sonarà.')
-    : `${al === 'armed_away' || al === 'arming' ? 'Des' : esc(ALARM[al] || al) + ' · des'} de les ${hhmm(e.last_changed)}`;
+  const title = al === 'triggered' ? L('L’alarma està sonant', 'La alarma está sonando') : al === 'pending' ? L('Desactiva l’alarma', 'Desactiva la alarma') : al === 'arming' ? L('Activant l’alarma', 'Activando la alarma') : L('Alarma activada', 'Alarma activada');
+  const sub = al === 'triggered' ? L('Introdueix el codi per aturar-la.', 'Introduce el código para pararla.') : al === 'pending' ? (left != null ? L(`Sonarà d’aquí ${left} s.`, `Sonará dentro de ${left} s.`) : L('Si no la desactives, sonarà.', 'Si no la desactivas, sonará.'))
+    : (al === 'armed_away' || al === 'arming' ? '' : esc(ALARM[al] || al) + ' · ') + L(`${al === 'armed_away' || al === 'arming' ? 'Des' : 'des'} de les ${hhmm(e.last_changed)}`, `${al === 'armed_away' || al === 'arming' ? 'Desde' : 'desde'} las ${hhmm(e.last_changed)}`);
   const shield = size => `<div style="width:${size}px;height:${size}px;border-radius:50%;display:flex;align-items:center;justify-content:center;color:${color};background:color-mix(in srgb, ${color} 12%, transparent);flex:none">${svg(ICON.shield, size * 0.5, 1.5)}</div>`;
   const clock = `<div class="num" style="position:absolute;top:40px;left:60px;font-size:28px;color:var(--muted)">${hhmm(now())}</div>`;
 
@@ -774,7 +835,7 @@ function viewAlarm() {
     ${shield(240)}
     <h1 style="margin:12px 0 0;font-size:70px;line-height:1.02;font-weight:500;letter-spacing:-.025em;color:${urgent ? color : 'var(--ink)'}">${title}</h1>
     <p style="margin:0;font-size:26px;color:var(--muted)">${sub}</p>
-    <button data-a="disarm" class="solid" style="margin-top:20px;height:76px;padding:0 48px;border-radius:38px;font-size:24px;font-weight:600;text-align:center;${sure ? 'background:var(--red);color:#fff' : ''}">${sure ? 'Toca per confirmar' : 'Desactivar'}</button>
+    <button data-a="disarm" class="solid" style="margin-top:20px;height:76px;padding:0 48px;border-radius:38px;font-size:24px;font-weight:600;text-align:center;${sure ? 'background:var(--red);color:#fff' : ''}">${sure ? L('Toca per confirmar', 'Toca para confirmar') : L('Desactivar', 'Desactivar')}</button>
   </div>`;
 }
 
@@ -793,8 +854,8 @@ function isNight() {
 
 function viewNit() {
   const d = new Date(now());
-  const wd = d.toLocaleDateString('ca-ES', { weekday: 'long' });
-  const date = wd.charAt(0).toUpperCase() + wd.slice(1) + ', ' + d.toLocaleDateString('ca-ES', { day: 'numeric', month: 'long' });
+  const wd = d.toLocaleDateString(LOC, { weekday: 'long' });
+  const date = wd.charAt(0).toUpperCase() + wd.slice(1) + ', ' + d.toLocaleDateString(LOC, { day: 'numeric', month: 'long' });
   const warns = stories().filter(x => x.tone === 'warn').slice(0, 2);
   const ev = (S.events || []).find(e => !e.allDay && e.start > now());
   const line = (html, color = 'var(--muted)') => `<div style="font-size:22px;color:${color};display:flex;align-items:center;gap:10px;justify-content:center">${html}</div>`;
@@ -802,13 +863,13 @@ function viewNit() {
     ...warns.map(x => line(`<span style="width:8px;height:8px;border-radius:50%;background:var(--orange)"></span>${x.mini || x.title}`, 'var(--orange)')),
     ev ? line(`${svg(ICON.cal, 20, 1.6)}${dayName(ev.start) === 'avui' ? '' : esc(dayName(ev.start)) + ' '}${hhmm(ev.start)} · ${esc(ev.summary)}`) : '',
   ].filter(Boolean).join('');
-  const temps = [ENT.extTemp ? `Fora ${deg(num(ENT.extTemp), 0)}` : '', ENT.intTemp ? `${esc(ROOM)} ${deg(num(ENT.intTemp), 1)}` : ''].filter(Boolean).join('<span style="opacity:.4"> · </span>');
+  const temps = [ENT.extTemp ? `${L('Fora', 'Fuera')} ${deg(num(ENT.extTemp), 0)}` : '', ENT.intTemp ? `${esc(ROOM)} ${deg(num(ENT.intTemp), 1)}` : ''].filter(Boolean).join('<span style="opacity:.4"> · </span>');
   return `<div class="screen" style="height:744px;box-sizing:border-box;padding:60px;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:18px;position:relative">
     <div class="num nit-clock" style="font-size:180px;line-height:1;font-weight:300;letter-spacing:-.04em">${hhmm(now())}</div>
     <div style="font-size:24px;color:var(--muted)">${esc(date)}</div>
     ${temps ? `<div class="num" style="font-size:26px;margin-top:8px">${temps}</div>` : ''}
     ${lines ? `<div style="display:flex;flex-direction:column;gap:14px;margin-top:28px">${lines}</div>` : ''}
-    <button data-a="night" data-n="0" class="outline pillbtn" style="position:absolute;bottom:48px;left:50%;transform:translateX(-50%);opacity:.7">Pantalla normal</button>
+    <button data-a="night" data-n="0" class="outline pillbtn" style="position:absolute;bottom:48px;left:50%;transform:translateX(-50%);opacity:.7">${L('Pantalla normal', 'Pantalla normal')}</button>
     ${bell()}
   </div>`;
 }
@@ -816,16 +877,16 @@ function viewNit() {
 // ---------- Persones ----------
 function whereIs(id) {
   const s = st(id);
-  if (s === 'home') return 'A casa';
-  if (s === 'not_home') return 'Fora';
-  if (!s || s === 'unknown' || s === 'unavailable') return 'No se sap';
+  if (s === 'home') return L('A casa', 'En casa');
+  if (s === 'not_home') return L('Fora', 'Fuera');
+  if (!s || s === 'unknown' || s === 'unavailable') return L('No se sap', 'No se sabe');
   return s.charAt(0).toUpperCase() + s.slice(1).replace(/_/g, ' ');
 }
 function since(t) {
   const days = Math.round((startOfDay(now()) - startOfDay(t)) / (24 * 60 * MIN));
-  if (days <= 0) return 'des de les ' + hhmm(t);
-  if (days === 1) return 'des d’ahir a les ' + hhmm(t);
-  return 'des del ' + new Date(t).toLocaleDateString('ca-ES', { weekday: 'long', day: 'numeric' });
+  if (days <= 0) return L('des de les ', 'desde las ') + hhmm(t);
+  if (days === 1) return L('des d’ahir a les ', 'desde ayer a las ') + hhmm(t);
+  return L('des del ', 'desde el ') + new Date(t).toLocaleDateString(LOC, { weekday: 'long', day: 'numeric' });
 }
 function viewCasa() {
   const home = PEOPLE.filter(([id]) => st(id) === 'home').length;
@@ -836,8 +897,8 @@ function viewCasa() {
       <span style="font-size:22px;font-weight:500;margin-top:auto">${esc(name)}</span>
       <span style="font-size:15px;opacity:.8">${whereIs(id)}${e ? ' · ' + since(e.last_changed) : ''}</span></div>`;
   }).join('');
-  const count = home === 0 ? 'ningú' : home === PEOPLE.length ? 'tothom' : home + ' de ' + PEOPLE.length;
-  return `<div class="panel">${head(`A casa <span class="num" style="color:var(--muted);font-weight:400">· ${count}</span>`)}
+  const count = home === 0 ? L('ningú', 'nadie') : home === PEOPLE.length ? L('tothom', 'todos') : home + ' de ' + PEOPLE.length;
+  return `<div class="panel">${head(`${L('A casa', 'En casa')} <span class="num" style="color:var(--muted);font-weight:400">· ${count}</span>`)}
   <div class="g4" style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px">${tiles}</div></div>`;
 }
 
@@ -859,7 +920,7 @@ function bumpTarget(delta) {
   clearTimeout(setpointTimer);
   setpointTimer = setTimeout(() => {
     S.setpoint.t = now();
-    callService('climate', 'set_temperature', c, { temperature: v }, 'No s\'ha pogut canviar la temperatura').catch(() => { S.setpoint = null; render(); });
+    callService('climate', 'set_temperature', c, { temperature: v }, L('No s\'ha pogut canviar la temperatura', 'No se ha podido cambiar la temperatura')).catch(() => { S.setpoint = null; render(); });
   }, 1500);
 }
 function viewCalefaccio() {
@@ -868,8 +929,8 @@ function viewCalefaccio() {
   const target = targetTemp();
   const heat = heatingPct();
   const mode = st(c), action = attr(c, 'hvac_action');
-  const state = mode === 'off' ? 'Apagada' : action === 'heating' || heat > 0 ? 'Escalfant' : action === 'idle' ? 'En repòs' : mode === 'auto' ? 'Programada' : '–';
-  const preset = { home: 'Casa', away: 'Fora' }[attr(c, 'preset_mode')] || '';
+  const state = mode === 'off' ? L('Apagada', 'Apagada') : action === 'heating' || heat > 0 ? L('Escalfant', 'Calentando') : action === 'idle' ? L('En repòs', 'En reposo') : mode === 'auto' ? L('Programada', 'Programada') : '–';
+  const preset = { home: L('Casa', 'Casa'), away: L('Fora', 'Fuera') }[attr(c, 'preset_mode')] || '';
   const fact = (k, v) => `<div style="display:flex;flex-direction:column;gap:6px"><span class="lbl">${k}</span><span style="font-size:22px;font-weight:500">${v}</span></div>`;
   const floors = [...new Set(ROOMS.map(r => r[3]))];
   const col = floor => {
@@ -883,18 +944,18 @@ function viewCalefaccio() {
         <span class="num" style="font-size:22px;font-weight:500">${deg(num(t), 1)}${h ? ` <small style="font-size:15px;font-weight:400;color:var(--muted)">${num(h) == null ? '–' : Math.round(num(h)) + '%'}</small>` : ''}</span></div>`).join('')}</div>`;
   };
   const manual = mode !== 'auto' && mode !== 'off';
-  return `<div class="panel">${head('Calefacció')}
+  return `<div class="panel">${head(L('Calefacció', 'Calefacción'))}
   <div style="display:inline-flex;flex-direction:column;align-items:center;gap:20px;align-self:flex-start">
     <div class="num" style="display:flex;align-items:baseline;gap:18px;font-size:72px;font-weight:400;letter-spacing:-.03em;line-height:1">
       ${deg(cur, 1)}<span style="font-size:36px;color:var(--muted)">→</span><span style="color:${S.setpoint ? 'var(--accent)' : heat > 0 ? 'var(--warn)' : 'var(--ink)'}">${target == null ? '–' : deg(target, 1)}</span></div>
     <div style="display:flex;gap:12px">
-      <button data-a="temp" data-d="-0.5" aria-label="Baixar la temperatura objectiu" class="outline" style="width:60px;height:60px;border-radius:30px;display:flex;align-items:center;justify-content:center">${svg(ICON.minus, 26, 2)}</button>
-      <button data-a="temp" data-d="0.5" aria-label="Pujar la temperatura objectiu" class="outline" style="width:60px;height:60px;border-radius:30px;display:flex;align-items:center;justify-content:center">${svg(ICON.plus, 26, 2)}</button></div>
+      <button data-a="temp" data-d="-0.5" aria-label="${L('Baixar la temperatura objectiu', 'Bajar la temperatura objetivo')}" class="outline" style="width:60px;height:60px;border-radius:30px;display:flex;align-items:center;justify-content:center">${svg(ICON.minus, 26, 2)}</button>
+      <button data-a="temp" data-d="0.5" aria-label="${L('Pujar la temperatura objectiu', 'Subir la temperatura objetivo')}" class="outline" style="width:60px;height:60px;border-radius:30px;display:flex;align-items:center;justify-content:center">${svg(ICON.plus, 26, 2)}</button></div>
   </div>
-  <div class="facts" style="display:flex;gap:48px;align-items:flex-end">${fact('Estat', state)}
-    ${fact('Caldera', `<span class="num" style="display:inline-flex;align-items:center;gap:6px;color:${heat > 0 ? 'var(--warn)' : 'var(--ink)'}">${svg(ICON.flame, 20, 1.8)}${Math.round(heat)}%</span>`)}
-    ${preset ? fact('Mode', preset) : ''}${fact('Temperatura', mode === 'off' ? '–' : manual ? 'Manual' : 'Segons l’horari')}
-    ${manual && (attr(c, 'hvac_modes') || []).includes('auto') ? `<button data-a="schedule" class="outline pillbtn" style="margin-left:auto">Tornar a l’horari</button>` : ''}</div>
+  <div class="facts" style="display:flex;gap:48px;align-items:flex-end">${fact(L('Estat', 'Estado'), state)}
+    ${fact(L('Caldera', 'Caldera'), `<span class="num" style="display:inline-flex;align-items:center;gap:6px;color:${heat > 0 ? 'var(--warn)' : 'var(--ink)'}">${svg(ICON.flame, 20, 1.8)}${Math.round(heat)}%</span>`)}
+    ${preset ? fact(L('Mode', 'Modo'), preset) : ''}${fact(L('Temperatura', 'Temperatura'), mode === 'off' ? '–' : manual ? L('Manual', 'Manual') : L('Segons l’horari', 'Según el horario'))}
+    ${manual && (attr(c, 'hvac_modes') || []).includes('auto') ? `<button data-a="schedule" class="outline pillbtn" style="margin-left:auto">${L('Tornar a l’horari', 'Volver al horario')}</button>` : ''}</div>
   ${ROOMS.length ? `<div class="cols" style="display:flex;gap:40px;margin-top:36px">${floors.map(col).join('')}</div>` : ''}</div>`;
 }
 
@@ -912,25 +973,25 @@ function viewHome() {
       <span class="lbl" style="flex:none;color:${toneColor(x.tone)}">${esc(x.kicker)}</span>
       <span style="font-size:20px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${x.mini || x.title}</span></div>`).join('');
   const d = new Date(now());
-  const wd = d.toLocaleDateString('ca-ES', { weekday: 'long' });
-  const date = wd.charAt(0).toUpperCase() + wd.slice(1) + ', ' + d.toLocaleDateString('ca-ES', { day: 'numeric', month: 'long' });
+  const wd = d.toLocaleDateString(LOC, { weekday: 'long' });
+  const date = wd.charAt(0).toUpperCase() + wd.slice(1) + ', ' + d.toLocaleDateString(LOC, { day: 'numeric', month: 'long' });
   const raining = num(ENT.rainRate) > 0;
   const hum = num(ENT.extHum);
   const heat = heatingPct();
-  const heatTxt = heat > 0 ? `${Math.round(heat)}%` : st(ENT.climate) === 'off' ? 'Calefacció apagada'
-    : attr(ENT.climate, 'temperature') != null ? 'Consigna ' + deg(attr(ENT.climate, 'temperature'), 1) : '';
+  const heatTxt = heat > 0 ? `${Math.round(heat)}%` : st(ENT.climate) === 'off' ? L('Calefacció apagada', 'Calefacción apagada')
+    : attr(ENT.climate, 'temperature') != null ? L('Consigna ', 'Consigna ') + deg(attr(ENT.climate, 'temperature'), 1) : '';
   const disc = discountOn();
   const h = d.getHours();
   const today = S.sums?.today;
   const n = LIGHTS.filter(([id]) => lightOn(id)).length;
-  const lightsLabel = n === 0 ? 'Llums apagades' : n === 1 ? '1 llum encesa' : n + ' llums enceses';
+  const lightsLabel = n === 0 ? L('Llums apagades', 'Luces apagadas') : n === 1 ? L('1 llum encesa', '1 luz encendida') : n + L(' llums enceses', ' luces encendidas');
   const openings = openingList();
   const opened = openings.filter(([id]) => st(id) === 'on').length;
   const ev = nextEvent();
   let agenda = '–';
-  if (ev && ev.allDay) agenda = `${esc(ev.summary)} <small>${ev.start <= now() ? 'avui' : dayName(ev.start)}</small>`;
-  else if (ev) agenda = `${hhmm(ev.start)} <small>${dayName(ev.start) === 'avui' ? '' : dayName(ev.start) + ' · '}${esc(ev.summary)}</small>`;
-  else if (S.events) agenda = `Res <small>els propers ${AGENDA_DAYS} dies</small>`;
+  if (ev && ev.allDay) agenda = `${esc(ev.summary)} <small>${ev.start <= now() ? L('avui', 'hoy') : dayName(ev.start)}</small>`;
+  else if (ev) agenda = `${hhmm(ev.start)} <small>${dayName(ev.start) === L('avui', 'hoy') ? '' : dayName(ev.start) + ' · '}${esc(ev.summary)}</small>`;
+  else if (S.events) agenda = L(`Res <small>els propers ${AGENDA_DAYS} dies</small>`, `Nada <small>los próximos ${AGENDA_DAYS} días</small>`);
 
   return `<div class="home" style="height:744px;box-sizing:border-box;padding:48px 52px 44px 60px;display:flex;gap:48px">
   <div class="home-main" style="flex:1 1 auto;min-width:0;display:flex;flex-direction:column">
@@ -946,31 +1007,31 @@ function viewHome() {
   <div class="home-div" style="width:1px;background:var(--line);flex:none"></div>
   <div class="home-side" style="width:330px;flex:none;display:flex;flex-direction:column">
     <div style="padding-bottom:16px">
-      <${PEOPLE.length ? 'button data-a="go" data-v="casa" aria-label="Qui és a casa"' : 'div'} class="num" style="display:block;font-size:72px;line-height:1;font-weight:400;letter-spacing:-.03em">${hhmm(now())}</${PEOPLE.length ? 'button' : 'div'}>
+      <${PEOPLE.length ? `button data-a="go" data-v="casa" aria-label="${L('Qui és a casa', 'Quién está en casa')}"` : 'div'} class="num" style="display:block;font-size:72px;line-height:1;font-weight:400;letter-spacing:-.03em">${hhmm(now())}</${PEOPLE.length ? 'button' : 'div'}>
       <div style="margin-top:8px;font-size:18px;color:var(--muted)">${esc(date)}</div>
     </div>
-    ${!ENT.extTemp ? '' : `<button class="row" data-a="go" data-v="exterior" aria-label="Temps exterior">${svg(ICON[raining ? 'rain' : 'thermo'])}<div><span class="lbl">Exterior</span>
-      <span class="num big">${deg(num(ENT.extTemp), 0)} <small>${raining ? 'Plou' : hum == null ? '' : Math.round(hum) + '% humitat'}</small></span></div></button>`}
+    ${!ENT.extTemp ? '' : `<button class="row" data-a="go" data-v="exterior" aria-label="${L('Temps exterior', 'Tiempo exterior')}">${svg(ICON[raining ? 'rain' : 'thermo'])}<div><span class="lbl">${L('Exterior', 'Exterior')}</span>
+      <span class="num big">${deg(num(ENT.extTemp), 0)} <small>${raining ? L('Plou', 'Llueve') : hum == null ? '' : Math.round(hum) + L('% humitat', '% humedad')}</small></span></div></button>`}
     ${!ENT.intTemp ? '' : `<${ENT.climate ? 'button data-a="go" data-v="calefaccio"' : 'div'} class="row">${svg(ICON.home)}<div><span class="lbl">${esc(ROOM)}</span>
-      <span class="num big">${deg(num(ENT.intTemp), 1)} <small style="color:${heat > 0 ? 'var(--warn)' : 'var(--muted)'}">${heat > 0 ? `<span aria-label="Escalfant" style="display:inline-flex;align-items:center;gap:3px;vertical-align:-2px">${svg(ICON.flame, 18, 1.8)}${heatTxt}</span>` : esc(heatTxt)}</small></span></div></${ENT.climate ? 'button' : 'div'}>`}
-    ${!DISC ? '' : `<button class="row" data-a="go" data-v="energia">${svg(ICON.bolt)}<div><span class="lbl">Llum</span>
-      <span class="num big" style="color:${disc ? 'var(--accent)' : 'var(--ink)'}">${disc ? '−' + DISC.percent + '%' : 'Normal'} <small>${disc ? `fins a les ${pad(DISC.to)}:00` : h < DISC.from ? `descompte a les ${DISC.from} h` : `descompte demà ${DISC.from} h`}</small></span></div></button>`}
-    ${!ENT.power ? '' : `<button class="row" data-a="go" data-v="energia">${svg(ICON.plug)}<div><span class="lbl">Consum ara</span>
-      <span class="num big">${watts(num(ENT.power))} <small>${today ? dec(today.kwh, 1) + ' kWh' + (today.eur == null ? '' : ' · ' + euros(today.eur)) + ' avui' : ''}</small></span></div></button>`}
-    ${!CALENDARS.length ? '' : `<button class="row" data-a="go" data-v="agenda">${svg(ICON.cal)}<div style="min-width:0"><span class="lbl">Agenda</span>
+      <span class="num big">${deg(num(ENT.intTemp), 1)} <small style="color:${heat > 0 ? 'var(--warn)' : 'var(--muted)'}">${heat > 0 ? `<span aria-label="${L('Escalfant', 'Calentando')}" style="display:inline-flex;align-items:center;gap:3px;vertical-align:-2px">${svg(ICON.flame, 18, 1.8)}${heatTxt}</span>` : esc(heatTxt)}</small></span></div></${ENT.climate ? 'button' : 'div'}>`}
+    ${!DISC ? '' : `<button class="row" data-a="go" data-v="energia">${svg(ICON.bolt)}<div><span class="lbl">${L('Llum', 'Luz')}</span>
+      <span class="num big" style="color:${disc ? 'var(--accent)' : 'var(--ink)'}">${disc ? '−' + DISC.percent + '%' : L('Normal', 'Normal')} <small>${disc ? L(`fins a les ${pad(DISC.to)}:00`, `hasta las ${pad(DISC.to)}:00`) : h < DISC.from ? L(`descompte a les ${DISC.from} h`, `descuento a las ${DISC.from} h`) : L(`descompte demà ${DISC.from} h`, `descuento mañana ${DISC.from} h`)}</small></span></div></button>`}
+    ${!ENT.power ? '' : `<button class="row" data-a="go" data-v="energia">${svg(ICON.plug)}<div><span class="lbl">${L('Consum ara', 'Consumo ahora')}</span>
+      <span class="num big">${watts(num(ENT.power))} <small>${today ? dec(today.kwh, 1) + ' kWh' + (today.eur == null ? '' : ' · ' + euros(today.eur)) + L(' avui', ' hoy') : ''}</small></span></div></button>`}
+    ${!CALENDARS.length ? '' : `<button class="row" data-a="go" data-v="agenda">${svg(ICON.cal)}<div style="min-width:0"><span class="lbl">${L('Agenda', 'Agenda')}</span>
       <span class="num big" style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${agenda}</span></div></button>`}
     <div style="margin-top:auto;display:flex;gap:12px">
       ${!LIGHTS.length ? '' : `<button data-a="go" data-v="llums" aria-label="${lightsLabel}" class="${n ? 'solid' : 'outline'}" style="min-width:60px;height:60px;box-sizing:border-box;border-radius:30px;padding:0 18px;display:flex;align-items:center;justify-content:center;gap:6px;font-size:20px;font-weight:600;flex:none">${svg(ICON.bulb, 24, 1.8)}<span class="num">${n}</span></button>`}
-      ${!openings.length ? '' : `<button data-a="go" data-v="portes" aria-label="Portes i finestres${opened ? ': ' + opened + (opened === 1 ? ' oberta' : ' obertes') : ''}" class="${opened ? 'solid' : 'outline'}" style="min-width:60px;height:60px;box-sizing:border-box;border-radius:30px;padding:0 ${opened ? 18 : 0}px;display:flex;align-items:center;justify-content:center;gap:6px;font-size:20px;font-weight:600;flex:none">${svg(ICON.door, 24, 1.8)}${opened ? `<span class="num">${opened}</span>` : ''}</button>`}
-      ${!COVERS.length ? '' : `<button data-a="go" data-v="persianes" aria-label="Persianes" class="outline" style="width:60px;height:60px;border-radius:30px;display:flex;align-items:center;justify-content:center;flex:none">${svg(ICON.blinds, 24, 1.8)}</button>`}
-      ${!MEDIA.length ? '' : `<button data-a="go" data-v="media" aria-label="Música i tele" class="${mediaActive().length ? 'solid' : 'outline'}" style="width:60px;height:60px;border-radius:30px;display:flex;align-items:center;justify-content:center;flex:none">${svg(ICON.music, 24, 1.8)}</button>`}
+      ${!openings.length ? '' : `<button data-a="go" data-v="portes" aria-label="${L('Portes i finestres', 'Puertas y ventanas')}${opened ? ': ' + opened + (opened === 1 ? L(' oberta', ' abierta') : L(' obertes', ' abiertas')) : ''}" class="${opened ? 'solid' : 'outline'}" style="min-width:60px;height:60px;box-sizing:border-box;border-radius:30px;padding:0 ${opened ? 18 : 0}px;display:flex;align-items:center;justify-content:center;gap:6px;font-size:20px;font-weight:600;flex:none">${svg(ICON.door, 24, 1.8)}${opened ? `<span class="num">${opened}</span>` : ''}</button>`}
+      ${!COVERS.length ? '' : `<button data-a="go" data-v="persianes" aria-label="${L('Persianes', 'Persianas')}" class="outline" style="width:60px;height:60px;border-radius:30px;display:flex;align-items:center;justify-content:center;flex:none">${svg(ICON.blinds, 24, 1.8)}</button>`}
+      ${!MEDIA.length ? '' : `<button data-a="go" data-v="media" aria-label="${L('Música i tele', 'Música y tele')}" class="${mediaActive().length ? 'solid' : 'outline'}" style="width:60px;height:60px;border-radius:30px;display:flex;align-items:center;justify-content:center;flex:none">${svg(ICON.music, 24, 1.8)}</button>`}
     </div>
   </div>
   ${bell()}
 </div>`;
 }
 
-const head = title => `<div class="phead"><h2>${title}</h2><button data-a="go" data-v="home" class="solid done">Fet</button></div>`;
+const head = title => `<div class="phead"><h2>${title}</h2><button data-a="go" data-v="home" class="solid done">${L('Fet', 'Hecho')}</button></div>`;
 
 function viewLlums() {
   const n = LIGHTS.filter(([id]) => lightOn(id)).length;
@@ -979,13 +1040,13 @@ function viewLlums() {
     return `<button data-a="light" data-id="${id}" aria-pressed="${on}" class="tile${on ? ' on' : ''}${na ? ' na' : ''}">
       <span style="font-size:12px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:${zoneColor(room, on)}">${room}</span>
       <span style="font-size:19px;font-weight:500;margin-top:auto">${name}</span>
-      <span style="font-size:15px;opacity:.8">${na ? 'No respon' : on ? 'Encesa' : 'Apagada'}</span></button>`;
+      <span style="font-size:15px;opacity:.8">${na ? L('No respon', 'No responde') : on ? L('Encesa', 'Encendida') : L('Apagada', 'Apagada')}</span></button>`;
   }).join('');
   const scenes = SCENES.map(([name, domain], i) => domain ? `<button data-a="scene" data-i="${i}" class="outline pillbtn">${name}</button>` : '').join('');
-  return `<div class="panel">${head(`Llums <span class="num" style="color:var(--muted);font-weight:400">· ${n} enceses</span>`)}
+  return `<div class="panel">${head(`${L('Llums', 'Luces')} <span class="num" style="color:var(--muted);font-weight:400">· ${n} ${L('enceses', 'encendidas')}</span>`)}
   <div class="g4" style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px">${tiles}</div>
   <div style="margin-top:auto;display:flex;flex-direction:column;gap:14px;padding-top:24px;border-top:1px solid var(--line)">
-    <span class="lbl">Escenes</span><div class="wrap" style="display:flex;gap:12px">${scenes}</div></div></div>`;
+    <span class="lbl">${L('Escenes', 'Escenas')}</span><div class="wrap" style="display:flex;gap:12px">${scenes}</div></div></div>`;
 }
 
 const mediaState = id => { const p = pendingFor(id); return p && 'state' in p ? p.state : st(id); };
@@ -996,12 +1057,12 @@ function mediaCmd(id, cmd) {
   if (cmd === 'play_pause') {
     S.pending[id] = { state: s === 'playing' ? 'paused' : 'playing', t: now() };
     render();
-    return callService('media_player', 'media_play_pause', id, null, 'No s\'ha pogut fer play/pausa').catch(() => { delete S.pending[id]; render(); });
+    return callService('media_player', 'media_play_pause', id, null, L('No s\'ha pogut fer play/pausa', 'No se ha podido hacer play/pausa')).catch(() => { delete S.pending[id]; render(); });
   }
-  callService('media_player', cmd, id, null, 'No ha respost').catch(() => {});
+  callService('media_player', cmd, id, null, L('No ha respost', 'No ha respondido')).catch(() => {});
 }
 function mediaVolume(id, pct) {
-  callService('media_player', 'volume_set', id, { volume_level: pct / 100 }, 'No s\'ha pogut canviar el volum').catch(() => {});
+  callService('media_player', 'volume_set', id, { volume_level: pct / 100 }, L('No s\'ha pogut canviar el volum', 'No se ha podido cambiar el volumen')).catch(() => {});
 }
 
 function viewMedia() {
@@ -1010,7 +1071,7 @@ function viewMedia() {
   const cards = active.map(([id, name]) => {
     const s = mediaState(id), a = ent(id).attributes;
     const isTv = a.device_class === 'tv';
-    const stateTxt = s === 'playing' ? 'Sonant' : s === 'paused' ? 'En pausa' : s === 'buffering' ? 'Carregant…' : 'Engegada';
+    const stateTxt = s === 'playing' ? L('Sonant', 'Sonando') : s === 'paused' ? L('En pausa', 'En pausa') : s === 'buffering' ? L('Carregant…', 'Cargando…') : L('Engegada', 'Encendida');
     const title = a.media_title || a.source || name;
     const sub = a.media_artist || a.media_album_name || (a.media_title && a.source ? a.source : '');
     const pic = a.entity_picture
@@ -1031,59 +1092,64 @@ function viewMedia() {
           <span style="font-size:21px;font-weight:600;line-height:1.2;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden">${esc(title)}</span>
           <span style="font-size:16px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(sub)}</span></div></div>
       <div style="display:flex;gap:10px;align-items:center">
-        ${btn('media_previous_track', ICON.prev, 'Anterior')}${btn('play_pause', s === 'playing' ? ICON.pause : ICON.play, s === 'playing' ? 'Pausa' : 'Play', true)}${btn('media_next_track', ICON.next, 'Següent')}
+        ${btn('media_previous_track', ICON.prev, L('Anterior', 'Anterior'))}${btn('play_pause', s === 'playing' ? ICON.pause : ICON.play, s === 'playing' ? L('Pausa', 'Pausa') : 'Play', true)}${btn('media_next_track', ICON.next, L('Següent', 'Siguiente'))}
       </div>
       ${vol == null ? '' : `<div style="display:flex;gap:12px;align-items:center">
         <span style="color:var(--muted);flex:none">${svg(ICON.voldown, 20, 1.8)}</span>
-        <input type="range" min="0" max="100" value="${vol}" data-vol="${id}" aria-label="Volum" style="flex:1 1 auto;min-width:0;height:28px;accent-color:var(--ink)">
+        <input type="range" min="0" max="100" value="${vol}" data-vol="${id}" aria-label="${L('Volum', 'Volumen')}" style="flex:1 1 auto;min-width:0;height:28px;accent-color:var(--ink)">
         <span class="num" style="width:34px;text-align:right;font-size:15px;color:var(--muted)">${vol}</span></div>`}
       ${list.length ? `<button data-a="sources" data-id="${id}" style="display:flex;align-items:center;gap:10px;height:52px;padding:0 18px;border-radius:16px;border:1.5px dashed var(--line);font-size:17px;font-weight:500">
-        ${svg(ICON.play, 12)}<span style="flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(a.source || 'Triar font')}</span><span style="color:var(--muted);font-size:15px">${open ? 'Tancar' : 'Font'}</span></button>` : ''}
+        ${svg(ICON.play, 12)}<span style="flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(a.source || L('Triar font', 'Elegir fuente'))}</span><span style="color:var(--muted);font-size:15px">${open ? L('Tancar', 'Cerrar') : L('Font', 'Fuente')}</span></button>` : ''}
       ${sources}
     </div>`;
   }).join('');
-  return `<div class="panel">${head('Música i tele')}
+  return `<div class="panel">${head(L('Música i tele', 'Música y tele'))}
   ${active.length ? `<div class="g1" style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;align-items:start">${cards}</div>`
-    : `<p style="margin:0;font-size:24px;color:var(--muted)">Ara no sona res. Aquí apareixen la tele i els altaveus quan estan engegats.</p>`}
+    : `<p style="margin:0;font-size:24px;color:var(--muted)">${L('Ara no sona res. Aquí apareixen la tele i els altaveus quan estan engegats.', 'Ahora no suena nada. Aquí aparecen la tele y los altavoces cuando están encendidos.')}</p>`}
   </div>`;
 }
 
 function viewPersianes() {
   const cards = COVERS.map(([id, name, zone]) => {
     const p = coverPos(id), s = st(id);
-    const label = p == null ? 'No respon' : s === 'opening' ? 'Obrint…' : s === 'closing' ? 'Tancant…' : p === 100 ? 'Oberta' : p === 0 ? 'Tancada' : p + ' %';
+    const label = p == null ? L('No respon', 'No responde') : s === 'opening' ? L('Obrint…', 'Abriendo…') : s === 'closing' ? L('Tancant…', 'Cerrando…') : p === 100 ? L('Oberta', 'Abierta') : p === 0 ? L('Tancada', 'Cerrada') : p + ' %';
     const seg = (v, txt) => `<button data-a="cover" data-id="${id}" data-p="${v}" class="seg${p === v ? ' sel' : ''}">${txt}</button>`;
     return `<div class="cv"><div style="display:flex;align-items:baseline;justify-content:space-between">
       <div style="display:flex;flex-direction:column;gap:2px"><span style="font-size:12px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:${zoneColor(zone)}">${zone}</span>
-      <span style="font-size:22px;font-weight:500">${name === zone ? 'Persiana' : name}</span></div><span class="num" style="font-size:18px;color:var(--muted)">${label}</span></div>
+      <span style="font-size:22px;font-weight:500">${name === zone ? L('Persiana', 'Persiana') : name}</span></div><span class="num" style="font-size:18px;color:var(--muted)">${label}</span></div>
       <div style="height:8px;border-radius:4px;background:var(--line);overflow:hidden"><div style="height:8px;width:${p ?? 0}%;background:var(--ink);border-radius:4px;transition:width .4s"></div></div>
-      <div style="display:flex;gap:10px">${seg(100, 'Obrir')}${seg(50, 'Meitat')}${seg(0, 'Tancar')}</div></div>`;
+      <div style="display:flex;gap:10px">${seg(100, L('Obrir', 'Abrir'))}${seg(50, L('Meitat', 'Mitad'))}${seg(0, L('Tancar', 'Cerrar'))}</div></div>`;
   }).join('');
   const group = (label, floor) => `<div style="display:flex;flex-direction:column;gap:10px"><span class="lbl">${esc(label)}</span><div style="display:flex;gap:10px">
-    <button data-a="covers" data-f="${esc(floor)}" data-p="100" class="outline pillbtn">Amunt</button>
-    <button data-a="covers" data-f="${esc(floor)}" data-p="0" class="outline pillbtn">Avall</button></div></div>`;
-  const all = FLOORS.length ? group('Totes', '')
-    : `<div style="display:flex;gap:12px"><button data-a="covers" data-p="100" class="outline pillbtn">Totes amunt</button>
-    <button data-a="covers" data-p="0" class="outline pillbtn">Totes avall</button></div>`;
-  return `<div class="panel">${head('Persianes')}
+    <button data-a="covers" data-f="${esc(floor)}" data-p="100" class="outline pillbtn">${L('Amunt', 'Arriba')}</button>
+    <button data-a="covers" data-f="${esc(floor)}" data-p="0" class="outline pillbtn">${L('Avall', 'Abajo')}</button></div></div>`;
+  const all = FLOORS.length ? group(L('Totes', 'Todas'), '')
+    : `<div style="display:flex;gap:12px"><button data-a="covers" data-p="100" class="outline pillbtn">${L('Totes amunt', 'Todas arriba')}</button>
+    <button data-a="covers" data-p="0" class="outline pillbtn">${L('Totes avall', 'Todas abajo')}</button></div>`;
+  return `<div class="panel">${head(L('Persianes', 'Persianas'))}
   <div class="g1" style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px">${cards}</div>
   <div class="wrap" style="margin-top:auto;display:flex;gap:40px;padding-top:24px;border-top:1px solid var(--line)">${all}${FLOORS.map(f => group(f, f)).join('')}</div></div>`;
 }
 
+// Finestra o porta: el device_class del sensor a HA; si no en té, el nom.
+const isWindow = (id, name) => ['window'].includes(attr(id, 'device_class')) || (!attr(id, 'device_class') && /finestr|ventan|window|balcon/i.test(name + ' ' + id));
 function viewPortes() {
   const list = openingList();
   const open = list.filter(([id]) => st(id) === 'on').length;
   const tiles = list.map(([id, name, zone]) => {
     const s = st(id), on = s === 'on', na = !ent(id) || ['unavailable', 'unknown'].includes(s);
+    const icon = isWindow(id, name || fname(id)) ? (on ? ICON.windowOpen : ICON.window) : (on ? ICON.doorOpen : ICON.doorShut);
     return `<div class="tile${on ? ' on' : ''}${na ? ' na' : ''}">
-      <span style="font-size:12px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:${zoneColor(zone, on)}">${esc(zone)}</span>
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;width:100%">
+        <span style="font-size:12px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:${zoneColor(zone, on)}">${esc(zone)}</span>
+        <span style="opacity:.85">${svg(icon, 24, 1.6)}</span></div>
       <span style="font-size:19px;font-weight:500;margin-top:auto">${esc(name || fname(id))}</span>
-      <span class="num" style="font-size:15px;opacity:.8">${na ? 'No respon' : on ? 'Oberta · ' + dur(now() - ent(id).last_changed) : 'Tancada'}</span></div>`;
+      <span class="num" style="font-size:15px;opacity:.8">${na ? L('No respon', 'No responde') : on ? L('Oberta · ', 'Abierta · ') + dur(now() - ent(id).last_changed) : L('Tancada', 'Cerrada')}</span></div>`;
   }).join('');
-  const count = open === 0 ? 'tot tancat' : open === 1 ? '1 oberta' : open + ' obertes';
-  return `<div class="panel">${head(`Portes i finestres <span class="num" style="color:var(--muted);font-weight:400">· ${count}</span>`)}
+  const count = open === 0 ? L('tot tancat', 'todo cerrado') : open === 1 ? L('1 oberta', '1 abierta') : open + L(' obertes', ' abiertas');
+  return `<div class="panel">${head(`${L('Portes i finestres', 'Puertas y ventanas')} <span class="num" style="color:var(--muted);font-weight:400">· ${count}</span>`)}
   <div class="g4" style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px">${tiles}</div>
-  ${DOORBELL ? `<div style="margin-top:auto;padding-top:24px;border-top:1px solid var(--line)"><button data-a="go" data-v="timbre" class="outline pillbtn" style="display:flex;align-items:center;gap:10px">${svg(ICON.doorbell, 22, 1.7)}Veure la porta</button></div>` : ''}</div>`;
+  ${DOORBELL ? `<div style="margin-top:auto;padding-top:24px;border-top:1px solid var(--line)"><button data-a="go" data-v="timbre" class="outline pillbtn" style="display:flex;align-items:center;gap:10px">${svg(ICON.doorbell, 22, 1.7)}${L('Veure la porta', 'Ver la puerta')}</button></div>` : ''}</div>`;
 }
 
 function viewExterior() {
@@ -1091,25 +1157,25 @@ function viewExterior() {
   const dist = num(ENT.lightningDist);
   // [etiqueta, entitat de la qual depèn, valor]; les files sense entitat configurada no surten.
   const rows = [
-    ['Temperatura', ENT.extTemp, deg(num(ENT.extTemp), 1)],
-    ['Humitat', ENT.extHum, v(ENT.extHum, '%', 0)],
-    ['Pluja ara', ENT.rainRate, v(ENT.rainRate, ' mm/h')],
-    ['Pluja última hora', ENT.rain1h, v(ENT.rain1h, ' mm')],
-    ['Pluja 24 h', ENT.rain24h, v(ENT.rain24h, ' mm')],
-    ['Vent', ENT.wind, v(ENT.wind, ' km/h', 0) + (num(ENT.gust) == null ? '' : ' · ratxa ' + dec(num(ENT.gust), 0))],
-    ['Índex UV', ENT.uv, v(ENT.uv, '', 0)],
-    ['Radiació solar', ENT.solar, v(ENT.solar, ' W/m²', 0)],
+    [L('Temperatura', 'Temperatura'), ENT.extTemp, deg(num(ENT.extTemp), 1)],
+    [L('Humitat', 'Humedad'), ENT.extHum, v(ENT.extHum, '%', 0)],
+    [L('Pluja ara', 'Lluvia ahora'), ENT.rainRate, v(ENT.rainRate, ' mm/h')],
+    [L('Pluja última hora', 'Lluvia última hora'), ENT.rain1h, v(ENT.rain1h, ' mm')],
+    [L('Pluja 24 h', 'Lluvia 24 h'), ENT.rain24h, v(ENT.rain24h, ' mm')],
+    [L('Vent', 'Viento'), ENT.wind, v(ENT.wind, ' km/h', 0) + (num(ENT.gust) == null ? '' : L(' · ratxa ', ' · racha ') + dec(num(ENT.gust), 0))],
+    [L('Índex UV', 'Índice UV'), ENT.uv, v(ENT.uv, '', 0)],
+    [L('Radiació solar', 'Radiación solar'), ENT.solar, v(ENT.solar, ' W/m²', 0)],
     ['VPD', ENT.vpd, v(ENT.vpd, ' kPa', 2)],
-    ['Llamp més proper', ENT.lightningDist, dist == null ? 'Cap' : dec(dist, 0) + ' km'],
-    ['Llamps detectats', ENT.lightningCount, v(ENT.lightningCount, '', 0)],
+    [L('Llamp més proper', 'Rayo más cercano'), ENT.lightningDist, dist == null ? L('Cap', 'Ninguno') : dec(dist, 0) + ' km'],
+    [L('Llamps detectats', 'Rayos detectados'), ENT.lightningCount, v(ENT.lightningCount, '', 0)],
   ].filter(r => r[1]).map(([k, , val]) => [k, val]);
   const half = Math.ceil(rows.length / 2);
   const col = list => `<div style="flex:1 1 0;display:flex;flex-direction:column">${list.map(([k, val]) =>
     `<div style="display:flex;justify-content:space-between;align-items:baseline;padding:16px 0;border-top:1px solid var(--line)">
     <span style="font-size:17px;color:var(--muted)">${k}</span><span class="num" style="font-size:24px;font-weight:500">${esc(val)}</span></div>`).join('')}</div>`;
-  return `<div class="panel">${head('Exterior')}
+  return `<div class="panel">${head(L('Exterior', 'Exterior'))}
   <div class="cols" style="display:flex;gap:48px">${col(rows.slice(0, half))}${col(rows.slice(half))}</div>
-  <span style="margin-top:auto;font-size:14px;color:var(--muted)">Dades de Home Assistant</span></div>`;
+  <span style="margin-top:auto;font-size:14px;color:var(--muted)">${L('Dades de Home Assistant', 'Datos de Home Assistant')}</span></div>`;
 }
 
 function viewAgenda() {
@@ -1119,24 +1185,24 @@ function viewAgenda() {
     const day = startOfDay(now(), i);
     const list = eventsOn(day);
     if (!list.length && i > 0) continue;
-    const wd = day.toLocaleDateString('ca-ES', { weekday: 'long', day: 'numeric', month: 'long' });
-    const title = i === 0 ? 'Avui · ' + wd : i === 1 ? 'Demà · ' + wd : wd;
+    const wd = day.toLocaleDateString(LOC, { weekday: 'long', day: 'numeric', month: 'long' });
+    const title = i === 0 ? L('Avui · ', 'Hoy · ') + wd : i === 1 ? L('Demà · ', 'Mañana · ') + wd : wd;
     const items = list.map(e => {
       const past = !e.allDay && e.end <= now();
-      const when = e.allDay ? 'Tot el dia' : hhmm(e.start) + '–' + hhmm(e.end);
+      const when = e.allDay ? L('Tot el dia', 'Todo el día') : hhmm(e.start) + '–' + hhmm(e.end);
       return `<div style="display:flex;gap:14px;align-items:baseline;padding:10px 0;border-top:1px solid var(--line);opacity:${past ? .45 : 1}">
         <span class="num" style="width:104px;flex:none;font-size:15px;color:var(--muted)">${when}</span>
         <div style="display:flex;flex-direction:column;gap:2px;min-width:0;flex:1 1 auto">
           <span style="font-size:19px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(e.summary)}</span>
           ${e.location ? `<span style="font-size:14px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(e.location)}</span>` : ''}</div>
         ${dot(e.cal)}</div>`;
-    }).join('') || `<div style="padding:10px 0;border-top:1px solid var(--line);font-size:17px;color:var(--muted)">Res</div>`;
+    }).join('') || `<div style="padding:10px 0;border-top:1px solid var(--line);font-size:17px;color:var(--muted)">${L('Res', 'Nada')}</div>`;
     days.push(`<div style="break-inside:avoid;margin-bottom:22px"><div class="lbl" style="margin-bottom:6px">${esc(title)}</div>${items}</div>`);
   }
   const legend = CALENDARS.map(([, name], i) => `<span style="display:flex;align-items:center;gap:8px">${dot(i)}${esc(name)}</span>`).join('');
-  return `<div class="panel">${head('Agenda')}
+  return `<div class="panel">${head(L('Agenda', 'Agenda'))}
   ${S.events ? `<div class="agenda-cols" style="column-count:2;column-gap:48px;flex:1 1 auto;min-height:0;overflow:hidden">${days.join('')}</div>`
-    : `<p style="margin:0;font-size:24px;color:var(--muted)">${S.agendaError ? 'Els calendaris no estan disponibles a Home Assistant.' : 'Carregant els calendaris…'}</p>`}
+    : `<p style="margin:0;font-size:24px;color:var(--muted)">${S.agendaError ? L('Els calendaris no estan disponibles a Home Assistant.', 'Los calendarios no están disponibles en Home Assistant.') : L('Carregant els calendaris…', 'Cargando los calendarios…')}</p>`}
   <div class="wrap" style="margin-top:auto;display:flex;gap:24px;font-size:14px;color:var(--muted)">${legend}</div></div>`;
 }
 
@@ -1166,27 +1232,27 @@ function viewEnergia() {
   }
   const labels = bars.map((_, h) => `<span class="num" style="flex:1 1 0;font-size:13px;text-align:center;color:var(--muted)">${h % 3 === 0 ? pad(h) : ''}</span>`).join('');
   const caption = sel != null
-    ? `<b style="color:var(--ink);font-weight:600">${pad(sel)}–${pad((sel + 1) % 24)} h: ${bars[sel] == null ? 'sense dades' : dec(bars[sel], 2) + ' kWh'}</b>`
-    : 'kWh per hora · toca una barra per veure el valor';
+    ? `<b style="color:var(--ink);font-weight:600">${pad(sel)}–${pad((sel + 1) % 24)} h: ${bars[sel] == null ? L('sense dades', 'sin datos') : dec(bars[sel], 2) + ' kWh'}</b>`
+    : L('kWh per hora · toca una barra per veure el valor', 'kWh por hora · toca una barra para ver el valor');
   const sums = S.sums;
   const money = x => x ? (x.eur == null ? dec(x.kwh, 1) + ' kWh' : euros(x.eur)) : '–';
   const sub = x => x && x.eur != null ? dec(x.kwh, 1) + ' kWh' : '';
   const rows = [
-    ['Consum ara', watts(num(ENT.power)), ''],
-    ['Avui', money(sums?.today), sub(sums?.today)],
-    ['Aquesta setmana', money(sums?.week), sub(sums?.week)],
-    ['Aquest mes', money(sums?.month), sub(sums?.month)],
-    ...(DISC ? [['Estalvi pel descompte, mes', sums?.month?.saved == null ? '–' : euros(sums.month.saved), '']] : []),
-    ...(ENT.servers ? [['Servidors', watts(num(ENT.servers)), '']] : []),
-    ...(ENT.dishCount || ENT.washCount ? [['Rentaplats / rentadores, any', (num(ENT.dishCount) ?? '–') + ' / ' + (num(ENT.washCount) ?? '–'), '']] : []),
+    [L('Consum ara', 'Consumo ahora'), watts(num(ENT.power)), ''],
+    [L('Avui', 'Hoy'), money(sums?.today), sub(sums?.today)],
+    [L('Aquesta setmana', 'Esta semana'), money(sums?.week), sub(sums?.week)],
+    [L('Aquest mes', 'Este mes'), money(sums?.month), sub(sums?.month)],
+    ...(DISC ? [[L('Estalvi pel descompte, mes', 'Ahorro por el descuento, mes'), sums?.month?.saved == null ? '–' : euros(sums.month.saved), '']] : []),
+    ...(ENT.servers ? [[L('Servidors', 'Servidores'), watts(num(ENT.servers)), '']] : []),
+    ...(ENT.dishCount || ENT.washCount ? [[L('Rentaplats / rentadores, any', 'Lavavajillas / lavadoras, año'), (num(ENT.dishCount) ?? '–') + ' / ' + (num(ENT.washCount) ?? '–'), '']] : []),
   ].map(([k, v, small]) => `<div style="display:flex;justify-content:space-between;align-items:baseline;padding:13px 0;border-top:1px solid var(--line)">
     <span style="font-size:16px;color:var(--muted)">${k}</span><span class="num" style="font-size:22px;font-weight:500;text-align:right">${esc(v)}${small ? `<small style="display:block;font-size:14px;font-weight:400;color:var(--muted)">${small}</small>` : ''}</span></div>`).join('');
-  return `<div class="panel">${head('Energia avui')}
+  return `<div class="panel">${head(L('Energia avui', 'Energía hoy'))}
   <div class="cols" style="display:flex;gap:48px;flex:1 1 auto;min-height:0">
     <div style="flex:1 1 auto;display:flex;flex-direction:column;gap:14px">
       ${!DISC ? '' : `<div class="wrap" style="display:flex;gap:20px;font-size:15px;color:var(--muted)">
-        <span style="display:flex;align-items:center;gap:8px"><span style="width:12px;height:12px;border-radius:3px;background:var(--accent)"></span>Franja amb descompte (${DISC.from}–${DISC.to} h)</span>
-        <span style="display:flex;align-items:center;gap:8px"><span style="width:12px;height:12px;border-radius:3px;background:var(--chart)"></span>Preu normal</span></div>`}
+        <span style="display:flex;align-items:center;gap:8px"><span style="width:12px;height:12px;border-radius:3px;background:var(--accent)"></span>${L('Franja amb descompte', 'Franja con descuento')} (${DISC.from}–${DISC.to} h)</span>
+        <span style="display:flex;align-items:center;gap:8px"><span style="width:12px;height:12px;border-radius:3px;background:var(--chart)"></span>${L('Preu normal', 'Precio normal')}</span></div>`}
       <div style="position:relative;margin-right:52px;margin-top:20px">
         ${grid.join('')}
         <span style="position:absolute;right:-52px;top:-26px;font-size:13px;color:var(--muted)">kWh</span>
@@ -1216,16 +1282,16 @@ function render() {
   const v = S.view;
   const nightView = v === 'home' && isNight() && !ringing && !ALARM_ARMED.includes(alarmState()) && !['pending', 'triggered'].includes(alarmState());
   // El tema segueix l'aspecte del sistema (clar o fosc a l'iPad); el mode nit sempre és fosc.
-  const theme = nightView ? 'fosc' : params.get('tema') || (darkScheme.matches ? 'fosc' : 'clar');
+  const theme = nightView ? 'fosc' : params.get('tema') || (PREFS.tema !== 'auto' ? PREFS.tema : darkScheme.matches ? 'fosc' : 'clar');
   document.documentElement.classList.toggle('fosc', theme === 'fosc');
   document.documentElement.classList.toggle('nit', nightView);
   if (alarmState() === 'pending') setTimeout(schedule, 1000);
-  $('view').innerHTML = v === 'llums' ? viewLlums() : v === 'persianes' ? viewPersianes() : v === 'portes' ? viewPortes() : v === 'energia' ? viewEnergia() : v === 'exterior' ? viewExterior() : v === 'media' ? viewMedia() : v === 'agenda' ? viewAgenda() : v === 'avisos' ? viewAvisos() : v === 'alarma' ? viewAlarm() : v === 'casa' ? viewCasa() : v === 'calefaccio' ? viewCalefaccio() : v === 'timbre' && DOORBELL ? viewTimbre(true) : viewHome();
+  $('view').innerHTML = v === 'llums' ? viewLlums() : v === 'persianes' ? viewPersianes() : v === 'portes' ? viewPortes() : v === 'energia' ? viewEnergia() : v === 'exterior' ? viewExterior() : v === 'media' ? viewMedia() : v === 'agenda' ? viewAgenda() : v === 'avisos' ? viewAvisos() : v === 'alarma' ? viewAlarm() : v === 'casa' ? viewCasa() : v === 'calefaccio' ? viewCalefaccio() : v === 'ajustos' ? viewAjustos() : v === 'timbre' && DOORBELL ? viewTimbre(true) : viewHome();
   syncCam((ringing || v === 'timbre') && !demo);
   const net = $('net');
   const showNet = !demo && (S.authError || (!S.connected && (S.everConnected || performance.now() > 5000)));
   net.style.display = showNet ? 'flex' : 'none';
-  net.lastChild.textContent = S.authError ? (CFG.token ? 'Token no vàlid' : 'Falta config.js') : 'Sense connexió';
+  net.lastChild.textContent = S.authError ? (CFG.token ? L('Token no vàlid', 'Token no válido') : L('Falta config.js', 'Falta config.js')) : L('Sense connexió', 'Sin conexión');
 }
 
 let toastTimer;
@@ -1258,23 +1324,28 @@ $('view').addEventListener('change', e => {
 $('view').addEventListener('click', e => {
   const b = e.target.closest('button[data-a]'); if (!b) return;
   const a = b.dataset.a;
+  // Amagar o tornar a mostrar seccions canvia la configuració: en sortir dels ajustos es torna a carregar la pàgina.
+  if (a === 'go' && S.view === 'ajustos' && S.prefsChanged) return location.reload();
   if (a === 'go') { if (S.view === 'avisos') markSeen(); S.view = b.dataset.v; S.barSel = null; if (S.view === 'energia') refreshEnergy(); if (S.view === 'agenda') refreshAgenda(); render(); }
+  else if (a === 'idioma') { PREFS.idioma = b.dataset.l; savePrefs(); location.reload(); }
+  else if (a === 'tema') { PREFS.tema = b.dataset.t; savePrefs(); render(); }
+  else if (a === 'item') { const k = b.dataset.k; PREFS.amaga = PREFS.amaga.includes(k) ? PREFS.amaga.filter(x => x !== k) : [...PREFS.amaga, k]; savePrefs(); S.prefsChanged = true; render(); }
   else if (a === 'bar') { const h = +b.dataset.h; S.barSel = S.barSel === h ? null : h; render(); }
   else if (a === 'light') toggleLight(b.dataset.id);
   else if (a === 'scene') runScene(+b.dataset.i);
   else if (a === 'cover') setCover(b.dataset.id, +b.dataset.p);
   else if (a === 'media') mediaCmd(b.dataset.id, b.dataset.c);
   else if (a === 'sources') { S.srcOpen = S.srcOpen === b.dataset.id ? null : b.dataset.id; render(); }
-  else if (a === 'source') { S.srcOpen = null; render(); callService('media_player', 'select_source', b.dataset.id, { source: b.dataset.s }, 'No s\'ha pogut canviar la font').catch(() => {}); }
+  else if (a === 'source') { S.srcOpen = null; render(); callService('media_player', 'select_source', b.dataset.id, { source: b.dataset.s }, L('No s\'ha pogut canviar la font', 'No se ha podido cambiar la fuente')).catch(() => {}); }
   else if (a === 'key') { if (S.code.length < 10) S.code += b.dataset.k; render(); }
   else if (a === 'keydel') { S.code = S.code.slice(0, -1); render(); }
   else if (a === 'disarm') { if (alarmNeedsCode() || now() - S.confirmDisarm < 5000) disarm(); else { S.confirmDisarm = now(); render(); setTimeout(schedule, 5100); } }
   else if (a === 'night') { S.nightOverride = { value: b.dataset.n === '1', auto: nightAuto() }; render(); }
   else if (a === 'ringclose') { if (S.view === 'timbre') S.view = 'portes'; else S.ringClosed = params.has('timbre') ? -1 : S.ringAt; render(); }
   else if (a === 'camsound') { S.camSound = !S.camSound; $('cam').muted = !S.camSound; if (S.camSound) $('cam').play().catch(() => {}); render(); }
-  else if (a === 'reply') { const o = attr(DOORBELL.replies, 'options')[+b.dataset.i]; callService('select', 'select_option', DOORBELL.replies, { option: o }, 'No s\'ha pogut enviar el missatge').then(() => toast('Missatge enviat al timbre')).catch(() => {}); }
+  else if (a === 'reply') { const o = attr(DOORBELL.replies, 'options')[+b.dataset.i]; callService('select', 'select_option', DOORBELL.replies, { option: o }, L('No s\'ha pogut enviar el missatge', 'No se ha podido enviar el mensaje')).then(() => toast(L('Missatge enviat al timbre', 'Mensaje enviado al timbre'))).catch(() => {}); }
   else if (a === 'temp') bumpTarget(+b.dataset.d);
-  else if (a === 'schedule') callService('climate', 'set_hvac_mode', ENT.climate, { hvac_mode: 'auto' }, 'No s\'ha pogut tornar a l\'horari').catch(() => {});
+  else if (a === 'schedule') callService('climate', 'set_hvac_mode', ENT.climate, { hvac_mode: 'auto' }, L('No s\'ha pogut tornar a l\'horari', 'No se ha podido volver al horario')).catch(() => {});
   else if (a === 'covers') COVERS.filter(c => !b.dataset.f || c[3] === b.dataset.f).forEach(([id]) => setCover(id, +b.dataset.p));
 });
 
@@ -1285,7 +1356,9 @@ function fit() {
   const mobile = innerWidth < 700 && innerWidth < innerHeight;
   document.documentElement.classList.toggle('mobil', mobile);
   const style = $('stage').style;
-  style.marginBottom = mobile ? ($('demobar')?.offsetHeight || 0) + 'px' : '';
+  const bar = mobile ? ($('demobar')?.offsetHeight || 0) + 'px' : '';
+  style.marginBottom = bar;
+  document.documentElement.style.setProperty('--demobar', bar || '0px');
   if (mobile) { style.transform = style.left = style.top = ''; return; }
   const inset = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--inset-top')) || 0;
   const h = innerHeight - inset - ($('demobar')?.offsetHeight || 0);

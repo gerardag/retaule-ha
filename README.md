@@ -6,7 +6,9 @@ Com els retaules antics, panells penjats a la paret que expliquen una història,
 
 Retaule és una pàgina per a una tauleta a la paret que es connecta a Home Assistant en temps real. A dalt de tot mostra el que és important ara mateix: una tempesta que s'acosta, una finestra oberta amb la calefacció en marxa, la cita d'aquí a una hora, el rentaplats que ha acabat o la franja de llum barata. Al costat, la temperatura, el consum, l'agenda, i botons per controlar llums, persianes, la tele i els altaveus. El que falla no embruta la pantalla: va a la campana.
 
-Un sol `index.html`, sense dependències ni compilació, servit per un nginx que fa de pont cap a Home Assistant a la xarxa de casa. Així el navegador no surt a internet i funciona amb un usuari de HA limitat a la xarxa local. Pensat per a un iPad en horitzontal.
+Un sol `index.html`, sense dependències ni compilació, servit per un nginx que fa de pont cap a Home Assistant a la xarxa de casa. Així el navegador no surt a internet i funciona amb un usuari de HA limitat a la xarxa local. Pensat per a un iPad en horitzontal; en un mòbil en vertical passa a una sola columna amb la barra de controls a baix.
+
+Cada aparell té els seus ajustos (botó al costat de la campana): tema clar, fosc o automàtic, idioma (català o castellà) i quines seccions es veuen, per exemple sense l'agenda. Es guarden al navegador, no a HA.
 
 Per veure-la sense HA, obre la pàgina amb `?demo=descompte` (o `plats`, `roba`, `finestres`, `sensor`, `pluja`, `tempesta`, `nit`, `agenda`).
 

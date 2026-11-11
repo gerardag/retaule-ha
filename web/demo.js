@@ -101,9 +101,9 @@ window.PANTALLA_DEMO = function (name, app) {
   set('sensor.rentadora_fase', name === 'rentant' ? 'rinse' : 'none');
   set('sensor.rentadora_final', new Date(target.getTime() + 48 * 60000).toISOString());
   const ops = ['binary_sensor.finestra_cuina', 'binary_sensor.porta_entrada', 'binary_sensor.finestra_habitacio'];
-  set('binary_sensor.finestra_cuina', name === 'finestres' ? 'on' : name === 'sensor' ? 'unavailable' : 'off', { friendly_name: 'Finestra cuina' }, name === 'finestres' ? 14 : 180);
-  set('binary_sensor.porta_entrada', 'off', { friendly_name: 'Porta entrada' });
-  set('binary_sensor.finestra_habitacio', 'off', { friendly_name: 'Finestra habitació' });
+  set('binary_sensor.finestra_cuina', name === 'finestres' ? 'on' : name === 'sensor' ? 'unavailable' : 'off', { friendly_name: 'Finestra cuina', device_class: 'window' }, name === 'finestres' ? 14 : 180);
+  set('binary_sensor.porta_entrada', name === 'finestres' ? 'on' : 'off', { friendly_name: 'Porta entrada', device_class: 'door' }, name === 'finestres' ? 6 : 180);
+  set('binary_sensor.finestra_habitacio', 'off', { friendly_name: 'Finestra habitació', device_class: 'window' });
   set('binary_sensor.portes_i_finestres', name === 'finestres' ? 'on' : 'off', { entity_id: ops });
   // Alarma: a 'alarma' i 'entrada' demana codi (el de la demo és 1234); a 'alarmaboto' no.
   const alarm = { alarma: 'armed_night', alarmaboto: 'armed_away', entrada: 'pending', sona: 'triggered', nit: 'armed_night' }[name] || 'disarmed';
@@ -127,9 +127,9 @@ window.PANTALLA_DEMO = function (name, app) {
   bar.id = 'demobar';
   bar.style.cssText = 'position:fixed;left:0;right:0;bottom:0;padding:12px 16px;display:flex;flex-wrap:wrap;gap:8px;align-items:center;background:#EEF0F3;font:500 14px system-ui,sans-serif;color:#1F2937;z-index:10';
   const chip = (label, href, sel) => `<a href="${href}" style="padding:8px 14px;border-radius:18px;text-decoration:none;${sel ? 'background:#0B1B3A;color:#fff' : 'background:#fff;color:#1F2937;box-shadow:inset 0 0 0 1px #C5CCD6'}">${label}</a>`;
-  bar.innerHTML = '<b style="margin-right:4px;color:#A93A0A">DEMO · dades inventades</b>' +
+  bar.innerHTML = '<b style="margin-right:4px;color:#A93A0A">' + L('DEMO · dades inventades', 'DEMO · datos inventados') + '</b>' +
     Object.keys(SC).map(k => chip(k.charAt(0).toUpperCase() + k.slice(1), '?demo=' + k, k === name)).join('') +
-    chip('Dades reals', './', false);
+    chip(L('Dades reals', 'Datos reales'), './', false);
   document.body.appendChild(bar);
 
   setTimeout(() => app.applyEvent({ a: E }), 0);

@@ -6,6 +6,7 @@ window.PANTALLA_CONFIG = {
 
   name: 'Casa',            // títol de la pestanya
   roomName: 'Menjador',    // habitació on hi ha el termòstat
+  language: 'ca',          // idioma per defecte: 'ca' o 'es'; cada aparell el pot canviar als ajustos
 
   entities: {
     // Exterior
