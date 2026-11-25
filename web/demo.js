@@ -27,6 +27,19 @@ window.PANTALLA_DEMO_CONFIG = {
     { entity: 'light.escriptori', zone: 'Estudi', name: 'Escriptori' },
   ],
   scenes: [{ name: 'Relax', entity: 'scene.relax' }, { name: 'Anar a dormir', entity: 'scene.anar_a_dormir' }],
+  vacuums: {
+    script: 'script.aspiradors_neteja_habitacions',
+    areaAttribute: 'cleaned_area',
+    speeds: [['quiet', 'Silenciosa'], ['standard', 'Normal'], ['turbo', 'Turbo']],
+    floors: [
+      { name: 'Planta baixa', robot: 'vacuum.robot_baix', plan: 'demo-planol-baixa.svg' },
+      { name: 'Primer pis', robot: 'vacuum.robot_dalt', plan: 'demo-planol-dalt.svg' },
+    ],
+    rooms: {
+      sala: { name: 'Sala', floor: 0, value: 'sala' }, cuina: { name: 'Cuina', floor: 0, value: 'cuina' }, rebedor: { name: 'Rebedor', floor: 0, value: 'rebedor' },
+      habitacio: { name: 'Habitació', floor: 1, value: 'habitacio' }, estudi: { name: 'Estudi', floor: 1, value: 'estudi' }, bany: { name: 'Bany', floor: 1, value: 'bany' },
+    },
+  },
   covers: [
     { entity: 'cover.persiana_menjador', name: 'Persiana', zone: 'Menjador', floor: 'Planta 0' },
     { entity: 'cover.persiana_habitacio', name: 'Persiana', zone: 'Habitació', floor: 'Planta 1' },
@@ -58,7 +71,7 @@ window.PANTALLA_DEMO = function (name, app) {
   const SC = {
     descompte: '12:40', plats: '15:05', roba: '16:58', finestres: '19:20', sensor: '20:10',
     pluja: '10:15', tempesta: '17:40', nit: '23:30', agenda: '16:50',
-    rentant: '15:20', timbre: '18:05', alarma: '23:40', alarmaboto: '08:10', entrada: '18:05', sona: '03:12',
+    rentant: '15:20', aspirant: '11:30', timbre: '18:05', alarma: '23:40', alarmaboto: '08:10', entrada: '18:05', sona: '03:12',
   };
   const [hh, mm] = (SC[name] || SC.descompte).split(':').map(Number);
   const target = new Date(); target.setHours(hh, mm, 0, 0);
@@ -118,6 +131,8 @@ window.PANTALLA_DEMO = function (name, app) {
   set('media_player.sonos_estudi', night ? 'idle' : 'paused', { media_title: 'Flowers & Football Tops', media_artist: 'Glasvegas', source_list: ['Ràdio'], volume_level: 0.18 });
   set('media_player.televisio', night ? 'unavailable' : 'on', { device_class: 'tv', source: 'Pel·lícules', source_list: ['HDMI 1', 'HDMI 2', 'Pel·lícules', 'Sèries', 'YouTube'], volume_level: 0.12 });
   const pos = { menjador: 100, habitacio: 0, porta_cuina: 100, finestra_cuina: 60 };
+  set('vacuum.robot_baix', 'docked', { battery_level: 100, fan_speed: 'standard', cleaned_area: 27 });
+  set('vacuum.robot_dalt', name === 'aspirant' ? 'cleaning' : 'docked', { battery_level: name === 'aspirant' ? 64 : 15, fan_speed: 'quiet', cleaned_area: 8 });
   for (const [k, p] of Object.entries(pos)) set('cover.persiana_' + k, night ? 'closed' : p ? 'open' : 'closed', { current_position: night ? 0 : p });
 
 

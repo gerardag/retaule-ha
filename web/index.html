@@ -50,6 +50,39 @@ button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 #cam{position:absolute;left:56px;top:117px;width:680px;height:510px;border-radius:20px;background:#000;object-fit:contain;display:none}
 #toast{position:absolute;left:50%;bottom:28px;transform:translateX(-50%);padding:14px 22px;border-radius:24px;font-size:16px;font-weight:500;background:var(--ink);color:var(--bg);opacity:0;transition:opacity .2s;pointer-events:none;white-space:nowrap}
 #toast.show{opacity:1}
+/* Aspiradors: plànols de config (vacuums.floors[].plan), amb l'aspecte dels SVG originals */
+.asp{position:relative}
+.asp .robot{margin-left:auto;white-space:nowrap;display:flex;align-items:center;gap:10px;font-size:17px;color:var(--muted)}
+.asp .robot i{width:10px;height:10px;border-radius:50%;background:var(--muted)}
+.asp .robot.neteja{color:var(--ok)} .asp .robot.neteja i{background:var(--ok)}
+.asp .robot.avis{color:var(--warn)} .asp .robot.avis i{background:var(--warn)}
+.asp .plano{flex:1;min-height:0;position:relative}
+.asp .plano svg{position:absolute;inset:0;width:100%;height:100%}
+.asp .paret{stroke:var(--muted);stroke-width:10;fill:none}
+.asp .porta{stroke:var(--muted);stroke-width:4;fill:none}
+.asp .zona{fill:var(--accent);fill-opacity:.35;stroke:var(--accent);stroke-width:1;cursor:pointer;transition:fill-opacity .15s}
+.asp .zona.sel{fill-opacity:1;stroke-width:4}
+.asp .zona.fent{fill:var(--ok);stroke:var(--ok);stroke-width:6}
+.asp .rotol{fill:var(--ink);pointer-events:none;transition:fill .15s}
+.asp .rotol.sel{fill:var(--bg)}
+.asp-full{position:absolute;inset:0;background:color-mix(in srgb, var(--bg) 70%, transparent);display:flex;align-items:center;justify-content:center;z-index:2}
+.asp-caixa{width:620px;background:var(--bg);border:1.5px solid var(--edge);border-radius:28px;padding:36px 40px;display:flex;flex-direction:column;gap:24px;box-shadow:0 20px 60px rgba(0,0,0,.25)}
+.asp-fila{display:flex;align-items:center;gap:24px}
+.asp-segs{display:flex;gap:10px;width:420px}
+.asp-rapid{display:flex;align-items:center;gap:12px;padding-top:20px;border-top:1px solid var(--line)}
+html.mobil .asp-fila{flex-wrap:wrap;gap:14px}
+html.mobil .asp-segs{width:100%}
+html.mobil .asp .robot{margin-left:0}
+html.mobil .asp .plano{flex:none}
+html.mobil .asp .plano svg{position:static;display:block;width:100%;height:auto}
+html.mobil .asp-rapid{flex-wrap:wrap}
+html.mobil .asp-rapid .pillbtn{flex:1 1 auto;padding:0 18px;text-align:center}
+html.mobil .asp-full{position:fixed;inset:0 0 var(--demobar,0px) 0;padding:calc(12px + var(--inset-top)) 12px 12px;z-index:10}
+html.mobil .asp-caixa{width:100%;max-height:100%;overflow:auto;padding:22px 18px;gap:18px;border-radius:24px}
+html.mobil .asp-caixa h3{font-size:24px}
+html.mobil .asp-caixa .seg{height:46px;font-size:15px}
+html.mobil .asp-caixa .pillbtn{height:52px;flex:1 1 0;text-align:center;padding:0 16px}
+.asp-caixa h3{margin:0;font-size:30px;font-weight:500;letter-spacing:-.01em}
 /* Mòbil vertical: la pàgina no s'escala; passa a una columna i fa scroll. */
 html.mobil,html.mobil body{height:auto;overflow:auto}
 html.mobil #stage{position:relative;width:auto;height:auto;min-height:100svh;transform:none;overflow:visible;padding-top:var(--inset-top)}
@@ -123,6 +156,7 @@ const ITEMS = [
   ['llums', L('Llums', 'Luces'), c => c.lights?.length, c => { c.lights = []; }],
   ['portes', L('Portes i finestres', 'Puertas y ventanas'), c => c.openings?.length || c.entities?.openings, c => { c.openings = []; delete c.entities.openings; }],
   ['persianes', L('Persianes', 'Persianas'), c => c.covers?.length, c => { c.covers = []; }],
+  ['aspiradors', L('Aspiradors', 'Aspiradoras'), c => c.vacuums?.floors?.length, c => { c.vacuums = null; }],
   ['media', L('Música i tele', 'Música y tele'), c => c.media?.length, c => { c.media = []; }],
 ].filter(([, , has]) => has(RAW));
 const CFG = { ...RAW, entities: { ...RAW.entities } };
@@ -137,6 +171,11 @@ const MEDIA_ACTIVE = ['playing', 'paused', 'on', 'buffering'];
 const CAL_COLORS = ['var(--accent)', 'var(--cal2)', 'var(--z0)', 'var(--z2)'];
 const CALENDARS = (CFG.calendars || []).map((c, i) => [c.entity, c.name || c.entity, CAL_COLORS[i % CAL_COLORS.length]]);
 const AGENDA_DAYS = 7;
+// Aspiradors: plantes amb robot i plànol (SVG amb .zona[data-zona], .paret, .porta, .rotol[data-zona]) i estances -> valor de l'script.
+const VAC = CFG.vacuums?.floors?.length ? CFG.vacuums : null;
+const VAC_SPEEDS = VAC?.speeds || [];
+const VAC_MIN_BATTERY = VAC?.minBattery ?? 20;
+const VAC_AREA = VAC?.areaAttribute || null; // atribut del robot amb els m² netejats, si la integració en té
 const COVERS = (CFG.covers || []).map(c => [c.entity, c.name || c.entity, c.zone || '', c.floor || '']);
 const FLOORS = [...new Set(COVERS.map(c => c[3]).filter(Boolean))];
 // Portes i finestres amb nom i zona. Sense llista, surten els membres del grup entities.openings.
@@ -638,6 +677,7 @@ const ICON = {
   doorbell: '<rect x="7" y="2" width="10" height="20" rx="3"/><circle cx="12" cy="15" r="2.5"/><path d="M10 7h4"/>',
   shield: '<path d="M12 3l8 3v6c0 4.8-3.4 8.3-8 9-4.6-.7-8-4.2-8-9V6z"/>',
   del: '<path d="M9 5h11v14H9l-6-7z"/><path d="M12 9l5 6M17 9l-5 6"/>',
+  vacuum: '<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="2.5"/><path d="M6.5 8h11"/>',
   blinds: '<path d="M4 3h16M5 3v14M19 3v14M5 7h14M5 11h14M5 15h14"/><path d="M12 17v4"/>',
 };
 
@@ -1024,6 +1064,7 @@ function viewHome() {
       ${!LIGHTS.length ? '' : `<button data-a="go" data-v="llums" aria-label="${lightsLabel}" class="${n ? 'solid' : 'outline'}" style="min-width:60px;height:60px;box-sizing:border-box;border-radius:30px;padding:0 18px;display:flex;align-items:center;justify-content:center;gap:6px;font-size:20px;font-weight:600;flex:none">${svg(ICON.bulb, 24, 1.8)}<span class="num">${n}</span></button>`}
       ${!openings.length ? '' : `<button data-a="go" data-v="portes" aria-label="${L('Portes i finestres', 'Puertas y ventanas')}${opened ? ': ' + opened + (opened === 1 ? L(' oberta', ' abierta') : L(' obertes', ' abiertas')) : ''}" class="${opened ? 'solid' : 'outline'}" style="min-width:60px;height:60px;box-sizing:border-box;border-radius:30px;padding:0 ${opened ? 18 : 0}px;display:flex;align-items:center;justify-content:center;gap:6px;font-size:20px;font-weight:600;flex:none">${svg(ICON.door, 24, 1.8)}${opened ? `<span class="num">${opened}</span>` : ''}</button>`}
       ${!COVERS.length ? '' : `<button data-a="go" data-v="persianes" aria-label="${L('Persianes', 'Persianas')}" class="outline" style="width:60px;height:60px;border-radius:30px;display:flex;align-items:center;justify-content:center;flex:none">${svg(ICON.blinds, 24, 1.8)}</button>`}
+      ${!VAC ? '' : `<button data-a="go" data-v="aspiradors" aria-label="${L('Aspiradors', 'Aspiradoras')}" class="${vacBusy() ? 'solid' : 'outline'}" style="width:60px;height:60px;border-radius:30px;display:flex;align-items:center;justify-content:center;flex:none">${svg(ICON.vacuum, 24, 1.8)}</button>`}
       ${!MEDIA.length ? '' : `<button data-a="go" data-v="media" aria-label="${L('Música i tele', 'Música y tele')}" class="${mediaActive().length ? 'solid' : 'outline'}" style="width:60px;height:60px;border-radius:30px;display:flex;align-items:center;justify-content:center;flex:none">${svg(ICON.music, 24, 1.8)}</button>`}
     </div>
   </div>
@@ -1107,6 +1148,101 @@ function viewMedia() {
   ${active.length ? `<div class="g1" style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;align-items:start">${cards}</div>`
     : `<p style="margin:0;font-size:24px;color:var(--muted)">${L('Ara no sona res. Aquí apareixen la tele i els altaveus quan estan engegats.', 'Ahora no suena nada. Aquí aparecen la tele y los altavoces cuando están encendidos.')}</p>`}
   </div>`;
+}
+
+// ---------- Aspiradors ----------
+const VS = { floor: 0, sel: new Set(), passes: '1', speed: null, full: false, sent: {} };
+const VAC_PLANS = [];
+const VAC_STATE = { docked: L('A la base', 'En la base'), cleaning: L('Netejant', 'Limpiando'), returning: L('Tornant a la base', 'Volviendo a la base'), idle: L('En espera', 'En espera'), paused: L('En pausa', 'En pausa'), error: L('Error', 'Error'), unavailable: L('No respon', 'No responde'), unknown: L('No respon', 'No responde') };
+const vacRoom = k => VAC.rooms[k];
+const vacBusy = f => (f == null ? VAC.floors.map((_, i) => i) : [f]).some(i => ['cleaning', 'returning'].includes(st(VAC.floors[i].robot)));
+function vacLoadPlans() {
+  VAC?.floors.forEach((f, i) => {
+    VAC_PLANS[i] = {};
+    for (const [k, url] of [['h', f.plan], ['v', f.planVertical]]) if (url)
+      fetch(url).then(r => r.ok ? r.text() : '').then(t => { VAC_PLANS[i][k] = t; if (S.view === 'aspiradors') render(); }).catch(() => {});
+  });
+}
+function viewAspiradors() {
+  const f = VAC.floors[VS.floor], id = f.robot, s = st(id), b = attr(id, 'battery_level'), m2 = VAC_AREA ? attr(id, VAC_AREA) : null;
+  const cls = s === 'cleaning' ? 'neteja' : ['error', 'unavailable', 'unknown'].includes(s) || (b != null && b < VAC_MIN_BATTERY) ? 'avis' : '';
+  const robot = ent(id) ? `<div class="robot ${cls}"><i></i><span>${VAC_STATE[s] || esc(s)}</span><span class="num">${b != null ? b + ' %' : ''}${s === 'cleaning' && m2 != null ? ' · ' + m2 + ' m²' : ''}</span></div>` : '';
+  const segs = VAC.floors.map((fl, i) => {
+    const n = [...VS.sel].filter(k => vacRoom(k).floor === i).length;
+    return `<button data-a="asp-floor" data-i="${i}" class="seg${VS.floor === i ? ' sel' : ''}">${esc(fl.name)}${n ? ' · ' + n : ''}</button>`;
+  }).join('');
+  const n = VS.sel.size;
+  return `<div class="panel asp">${head(L('Aspiradors', 'Aspiradoras'))}
+    <div class="asp-fila"><div class="asp-segs">${segs}</div>${robot}</div>
+    <div class="plano">${(document.documentElement.classList.contains('mobil') && VAC_PLANS[VS.floor]?.v) || VAC_PLANS[VS.floor]?.h || ''}</div>
+    <div class="asp-rapid">
+      <button data-a="asp-all" data-f="all" class="outline pillbtn">${L('Tota la casa', 'Toda la casa')}</button>
+      ${VAC.floors.map((fl, i) => `<button data-a="asp-all" data-f="${i}" class="outline pillbtn">${esc(fl.name)}</button>`).join('')}
+      ${n ? `<button data-a="asp-open" class="solid pillbtn" style="margin-left:auto">${n === 1 ? L('Netejar 1 estança', 'Limpiar 1 estancia') : L(`Netejar ${n} estances`, `Limpiar ${n} estancias`)}</button>` : ''}
+    </div>
+    ${VS.full ? `<div class="asp-full">${vacSheet()}</div>` : ''}</div>`;
+}
+// Després de pintar: marca estances i rètols (els SVG venen tal qual del fitxer)
+function vacPaint() {
+  document.querySelectorAll('.asp .zona').forEach(el => {
+    const k = el.dataset.zona, r = vacRoom(k);
+    el.classList.toggle('sel', VS.sel.has(k));
+    el.classList.toggle('fent', !VS.sel.has(k) && k in VS.sent && r && st(VAC.floors[r.floor].robot) === 'cleaning');
+  });
+  document.querySelectorAll('.asp .rotol').forEach(el => el.classList.toggle('sel', VS.sel.has(el.dataset.zona)));
+}
+function vacSheet() {
+  const keys = [...VS.sel], floors = [...new Set(keys.map(k => vacRoom(k).floor))];
+  const names = keys.map(k => { const r = vacRoom(k); return esc(r.name) + (keys.some(o => o !== k && vacRoom(o).name === r.name) ? ` (${esc(VAC.floors[r.floor].name.toLowerCase())})` : ''); });
+  const warn = [];
+  for (const i of floors) {
+    const id = VAC.floors[i].robot, s = st(id), b = attr(id, 'battery_level'), who = L('El robot', 'El robot') + ' (' + esc(VAC.floors[i].name.toLowerCase()) + ')';
+    if (vacBusy(i)) warn.push(who + (s === 'cleaning' ? L(' està netejant. Primer s\'ha d\'aturar.', ' está limpiando. Primero hay que pararlo.') : L(' està tornant a la base. Primer s\'ha d\'aturar.', ' está volviendo a la base. Primero hay que pararlo.')));
+    else if (!ent(id) || ['unavailable', 'unknown', 'error'].includes(s)) warn.push(who + L(' no respon.', ' no responde.'));
+    else if (b != null && b < VAC_MIN_BATTERY) warn.push(who + L(` té el ${b} % de bateria i segurament no sortirà.`, ` tiene el ${b} % de batería y seguramente no saldrá.`));
+  }
+  const busy = floors.filter(i => vacBusy(i));
+  const seg = (k, v, t) => `<button data-a="asp-set" data-k="${k}" data-v="${esc(v)}" class="seg${VS[k] === v ? ' sel' : ''}">${esc(t)}</button>`;
+  return `<div class="asp-caixa"><h3>${names.join(', ')}</h3>
+    <div style="display:flex;flex-direction:column;gap:10px"><span class="lbl">${L('Passades', 'Pasadas')}</span><div style="display:flex;gap:10px">${seg('passes', '1', L('Una', 'Una'))}${seg('passes', '2', L('Dues', 'Dos'))}</div></div>
+    ${VAC_SPEEDS.length ? `<div style="display:flex;flex-direction:column;gap:10px"><span class="lbl">${L('Potència', 'Potencia')}</span><div style="display:flex;gap:10px">${VAC_SPEEDS.map(([v, t]) => seg('speed', v, t)).join('')}</div></div>` : ''}
+    ${warn.map(w => `<p style="margin:0;color:var(--warn);font-size:16px">${w}</p>`).join('')}
+    <div style="display:flex;gap:12px;justify-content:flex-end"><button data-a="asp-close" class="outline pillbtn">${L('Cancel·la', 'Cancelar')}</button>
+    ${busy.length ? `<button data-a="asp-stop" data-f="${busy.join(',')}" class="solid pillbtn">${L('Atura', 'Parar')}</button>` : `<button data-a="asp-go" class="solid pillbtn">${L('Neteja', 'Limpiar')}</button>`}</div></div>`;
+}
+function vacAction(b) {
+  const a = b.dataset.a;
+  if (a === 'asp-floor') VS.floor = +b.dataset.i;
+  else if (a === 'asp-all') {
+    // Neteja ràpida: totes les estances de la casa o d'una planta, i directe a la finestra de passades i potència
+    const f = b.dataset.f;
+    VS.sel = new Set(Object.keys(VAC.rooms).filter(k => f === 'all' || vacRoom(k).floor === +f));
+    if (f !== 'all') VS.floor = +f;
+    return vacAction({ dataset: { a: 'asp-open' } });
+  } else if (a === 'asp-open') {
+    // Potència per defecte: la que té ara el robot de la planta que es veu
+    const cur = attr(VAC.floors[VS.floor].robot, 'fan_speed');
+    VS.speed = VAC_SPEEDS.some(([v]) => v === cur) ? cur : VAC_SPEEDS[0]?.[0] ?? null;
+    VS.full = true;
+  } else if (a === 'asp-close') VS.full = false;
+  else if (a === 'asp-set') VS[b.dataset.k] = b.dataset.v;
+  else if (a === 'asp-go') {
+    const keys = [...VS.sel], rooms = [...new Set(keys.map(k => vacRoom(k).value))];
+    VS.full = false;
+    const [domain, service] = VAC.script.split('.');
+    send({ type: 'call_service', domain, service, service_data: { habitacions: rooms, passades: VS.passes, ...(VS.speed ? { potencia: VS.speed } : {}) } })
+      .then(() => { for (const k of keys) VS.sent[k] = now(); VS.sel.clear(); toast(L('Enviat', 'Enviado')); render(); })
+      .catch(() => toast(L('No s\'ha pogut enviar', 'No se ha podido enviar')));
+  } else if (a === 'asp-stop') {
+    // Aturar = parar i tornar a la base: vacuum.return_to_base, o l'acció de vacuums.stop si el robot ho fa d'una altra manera
+    VS.full = false;
+    const stop = VAC.stop || {};
+    Promise.all(b.dataset.f.split(',').map(i => send({ type: 'call_service', domain: stop.domain || 'vacuum', service: stop.service || 'return_to_base', service_data: { ...(stop.data || {}), entity_id: VAC.floors[+i].robot } })))
+      .then(() => toast(L('Torna a la base. Quan estigui en espera, torna-ho a provar', 'Vuelve a la base. Cuando esté en espera, vuelve a probarlo')))
+      .catch(() => toast(L('No s\'ha pogut aturar', 'No se ha podido parar')));
+  }
+  for (const [k, t] of Object.entries(VS.sent)) if (now() - t > 60000 && !vacBusy(vacRoom(k).floor)) delete VS.sent[k];
+  render();
 }
 
 function viewPersianes() {
@@ -1286,7 +1422,8 @@ function render() {
   document.documentElement.classList.toggle('fosc', theme === 'fosc');
   document.documentElement.classList.toggle('nit', nightView);
   if (alarmState() === 'pending') setTimeout(schedule, 1000);
-  $('view').innerHTML = v === 'llums' ? viewLlums() : v === 'persianes' ? viewPersianes() : v === 'portes' ? viewPortes() : v === 'energia' ? viewEnergia() : v === 'exterior' ? viewExterior() : v === 'media' ? viewMedia() : v === 'agenda' ? viewAgenda() : v === 'avisos' ? viewAvisos() : v === 'alarma' ? viewAlarm() : v === 'casa' ? viewCasa() : v === 'calefaccio' ? viewCalefaccio() : v === 'ajustos' ? viewAjustos() : v === 'timbre' && DOORBELL ? viewTimbre(true) : viewHome();
+  $('view').innerHTML = v === 'llums' ? viewLlums() : v === 'persianes' ? viewPersianes() : v === 'aspiradors' && VAC ? viewAspiradors() : v === 'portes' ? viewPortes() : v === 'energia' ? viewEnergia() : v === 'exterior' ? viewExterior() : v === 'media' ? viewMedia() : v === 'agenda' ? viewAgenda() : v === 'avisos' ? viewAvisos() : v === 'alarma' ? viewAlarm() : v === 'casa' ? viewCasa() : v === 'calefaccio' ? viewCalefaccio() : v === 'ajustos' ? viewAjustos() : v === 'timbre' && DOORBELL ? viewTimbre(true) : viewHome();
+  if (v === 'aspiradors' && VAC) vacPaint();
   syncCam((ringing || v === 'timbre') && !demo);
   const net = $('net');
   const showNet = !demo && (S.authError || (!S.connected && (S.everConnected || performance.now() > 5000)));
@@ -1322,7 +1459,11 @@ $('view').addEventListener('change', e => {
 });
 
 $('view').addEventListener('click', e => {
+  const z = e.target.closest('.zona');
+  if (z && S.view === 'aspiradors') { const k = z.dataset.zona; if (!VAC.rooms[k]) return; VS.sel.has(k) ? VS.sel.delete(k) : VS.sel.add(k); return render(); }
+  if (e.target.classList.contains('asp-full')) { VS.full = false; return render(); }
   const b = e.target.closest('button[data-a]'); if (!b) return;
+  if (b.dataset.a.startsWith('asp-')) return vacAction(b);
   const a = b.dataset.a;
   // Amagar o tornar a mostrar seccions canvia la configuració: en sortir dels ajustos es torna a carregar la pàgina.
   if (a === 'go' && S.view === 'ajustos' && S.prefsChanged) return location.reload();
@@ -1368,6 +1509,8 @@ function fit() {
   style.top = inset + Math.max(0, (h - 744 * s) / 2) + 'px';
 }
 addEventListener('resize', fit);
+vacLoadPlans();
+addEventListener('resize', () => { if (S.view === 'aspiradors') render(); });
 
 let wakeLock = null;
 async function requestWakeLock() {

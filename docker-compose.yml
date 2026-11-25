@@ -12,3 +12,5 @@ services:
       - ./web:/usr/share/nginx/html:ro
       - ./nginx:/etc/nginx/templates:ro
       - ./config.js:/etc/pantalla/config.js:ro
+      # Opcional: plànols per al panell d'aspiradors (vegeu el README)
+      - ./planols:/etc/pantalla/planols:ro

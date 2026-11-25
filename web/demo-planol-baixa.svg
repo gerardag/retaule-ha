@@ -1,0 +1,11 @@
+<svg viewBox="0 0 1200 600" xmlns="http://www.w3.org/2000/svg">
+  <path d="M20 20H1180V580H20Z" class="paret"/>
+  <path d="M700 20V580M700 360H1180" class="paret"/>
+  <path d="M700 230V300" class="porta"/>
+  <rect x="40" y="40" width="640" height="520" class="zona" data-zona="sala"/>
+  <rect x="720" y="40" width="440" height="300" class="zona" data-zona="cuina"/>
+  <rect x="720" y="380" width="440" height="180" class="zona" data-zona="rebedor"/>
+  <text x="360" y="312" text-anchor="middle" font-size="34" font-weight="600" class="rotol" data-zona="sala">SALA</text>
+  <text x="940" y="202" text-anchor="middle" font-size="34" font-weight="600" class="rotol" data-zona="cuina">CUINA</text>
+  <text x="940" y="482" text-anchor="middle" font-size="34" font-weight="600" class="rotol" data-zona="rebedor">REBEDOR</text>
+</svg>

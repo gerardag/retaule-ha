@@ -10,7 +10,7 @@ Un sol `index.html`, sense dependències ni compilació, servit per un nginx que
 
 Cada aparell té els seus ajustos (botó al costat de la campana): tema clar, fosc o automàtic, idioma (català o castellà) i quines seccions es veuen, per exemple sense l'agenda. Es guarden al navegador, no a HA.
 
-Per veure-la sense HA, obre la pàgina amb `?demo=descompte` (o `plats`, `roba`, `finestres`, `sensor`, `pluja`, `tempesta`, `nit`, `agenda`).
+Per veure-la sense HA, obre la pàgina amb `?demo=descompte` (o `plats`, `roba`, `finestres`, `sensor`, `pluja`, `tempesta`, `nit`, `agenda`, `aspirant`). El panell d'aspiradors de la demo és a `?demo=descompte&vista=aspiradors`.
 
 ## Instal·lació
 
@@ -94,6 +94,54 @@ sequence:
       - stop: Codi incorrecte
         response_variable: resultat
 ```
+
+## Aspiradors
+
+Panell opcional per enviar els robots aspiradors a estances concretes, a una planta o a tota la casa, triant al plànol. Surt un botó al costat del de les persianes si `config.js` té el bloc `vacuums`, i es pot amagar als ajustos de cada aparell.
+
+**Plànols.** Un SVG per planta, a la carpeta `planols/` (al costat de `config.js`). Opcionalment, un segon SVG vertical per a mòbil (`planVertical`). Els colors i el tema clar o fosc els posa la pàgina; dins l'SVG només calen aquestes classes:
+
+| Element | Classe | Què és |
+|---|---|---|
+| `rect`, `path`... | `zona` amb `data-zona="sala"` | Estança que es pot tocar. El `data-zona` és la clau de `rooms` |
+| `text` o `path` | `rotol` amb `data-zona="sala"` | Nom de l'estança (canvia de color quan està triada) |
+| línies | `paret` | Parets |
+| línies | `porta` | Portes i obertures (més primes) |
+
+Les estances que no tinguin `class="zona"` (una escala, per exemple) no es poden triar mai.
+
+**Script de HA.** La pàgina no envia res al robot directament: crida l'script de `vacuums.script` amb `habitacions` (llista dels `value` de les estances triades), `passades` (`"1"` o `"2"`) i `potencia` (un valor de `speeds`, si n'hi ha). L'script tradueix cada estança al número d'habitació del robot i crida l'acció de neteja per habitacions, que depèn de la integració. Diverses estances de l'SVG poden tenir el mateix `value` si per al robot són una sola habitació.
+
+Exemple per a robots Xiaomi amb la integració Xiaomi Miot (els números d'habitació es troben provant: normalment comencen pel 10):
+
+```yaml
+alias: Aspiradors - Neteja habitacions
+mode: single
+fields:
+  habitacions: {name: Habitacions, required: true, selector: {object: {}}}
+  passades: {name: Passades, default: "1", selector: {select: {options: ["1", "2"]}}}
+  potencia: {name: Potència, selector: {text: {}}}
+variables:
+  ids: {sala: 10, cuina: 11, rebedor: 12}
+  rooms: >-
+    {% set ns = namespace(l=[]) %}{% for h in habitacions if h in ids %}{% set ns.l = ns.l + [ids[h] | string] %}{% endfor %}{{ ns.l | join(',') }}
+sequence:
+  - if: "{{ rooms | string != '' }}"
+    then:
+      - if: "{{ potencia is defined and potencia }}"
+        then:
+          - action: vacuum.set_fan_speed
+            target: {entity_id: vacuum.robot}
+            data: {fan_speed: "{{ potencia }}"}
+      - action: xiaomi_miot.set_miot_property   # segona passada: siid 7, piid 1 (pot variar segons el model)
+        data: {entity_id: vacuum.robot, siid: 7, piid: 1, value: "{{ 1 if passades | string == '2' else 0 }}"}
+      - action: xiaomi_miot.call_action         # netejar habitacions: siid 7, aiid 3
+        data: {entity_id: vacuum.robot, siid: 7, aiid: 3, params: "{{ [rooms | string, 0, 1] }}"}
+```
+
+Els números d'habitació van com a text (`"10"`, no `10`): amb un sol número, si HA el converteix en enter, el robot va a una altra habitació. Per això `params` es construeix sencer dins la plantilla.
+
+Amb un robot ocupat (netejant o tornant a la base), la pàgina ofereix aturar-lo en lloc d'enviar l'ordre, perquè alguns robots no canvien de feina a mitges. Per defecte atura amb `vacuum.return_to_base`; si el teu robot ho fa d'una altra manera, posa-ho a `vacuums.stop`.
 
 ## Seguretat
 

@@ -89,4 +89,17 @@ window.PANTALLA_CONFIG = {
   calendars: [
     { entity: 'calendar.personal', name: 'Personal' },
   ],
+  // Opcional: panell d'aspiradors amb el plànol de cada planta (vegeu el README). Sense aquest bloc, no surt.
+  // vacuums: {
+  //   script: 'script.aspiradors_neteja_habitacions',      // rep {habitacions, passades, potencia}
+  //   areaAttribute: 'cleaned_area',                       // opcional: atribut amb els m² netejats
+  //   speeds: [['quiet', 'Silenciosa'], ['turbo', 'Turbo']], // opcional: [valor de fan_speed, text]
+  //   // stop: { domain: 'vacuum', service: 'return_to_base' }, // opcional: com s'atura el robot
+  //   floors: [
+  //     { name: 'Planta baixa', robot: 'vacuum.robot', plan: 'planols/baixa.svg', planVertical: 'planols/baixa-mobil.svg' },
+  //   ],
+  //   rooms: {
+  //     sala: { name: 'Sala', floor: 0, value: 'sala' },     // data-zona de l'SVG -> nom, planta (índex de floors) i valor per a l'script
+  //   },
+  // },
 };

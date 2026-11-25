@@ -19,6 +19,11 @@ server {
         add_header Cache-Control "no-store";
     }
 
+    # Plànols del panell d'aspiradors, de cada casa i fora de la carpeta web.
+    location /planols/ {
+        root /etc/pantalla;
+    }
+
     # Vídeo del timbre (HLS de les càmeres de HA).
     location /api/hls/ {
         proxy_pass http://${HA_HOST};
